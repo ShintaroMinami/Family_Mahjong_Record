@@ -1,0 +1,784 @@
+<script>
+(function () {
+  'use strict';
+
+  var SEAT_LABELS = ['東', '南', '西', '北'];
+  var SERIES_COLORS = ['#1f7a4d', '#c0783a', '#3a6fc0', '#a63d8f', '#7a7a2f', '#2f8f8f'];
+
+  var state = {
+    players: [],
+    rules: [],          // active presets, for the entry form
+    allRules: [],       // every preset, for the rule editor
+    today: '',
+    rule: null,
+    editingGameId: null,
+    // The rule an edited game was recorded with. Kept so that reopening an old
+    // game and saving it again cannot rescore it under a changed preset; it is
+    // dropped as soon as the user picks a different rule.
+    gameRuleSnapshot: null,
+    editingRuleId: null,
+    editingRuleActive: true,
+    lastPreview: null
+  };
+
+  // ---------------------------------------------------------------- helpers
+
+  function $(id) { return document.getElementById(id); }
+
+  /**
+   * Calls a server function and resolves with its return value.
+   * google.script.run is callback based, so wrap it once here.
+   */
+  function call(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        [name].apply(null, args);
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function toast(message, isError) {
+    var el = $('toast');
+    el.textContent = message;
+    el.className = 'show' + (isError ? ' error' : '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function () { el.className = ''; }, isError ? 5000 : 2600);
+  }
+
+  function busy(on) { $('overlay').classList.toggle('show', on); }
+
+  function fmtPt(value) {
+    var rounded = Math.round(value * 10) / 10;
+    return (rounded > 0 ? '+' : '') + rounded.toFixed(1);
+  }
+
+  function ptClass(value) { return value > 0 ? 'pt-plus' : (value < 0 ? 'pt-minus' : ''); }
+
+  function fmtPct(rate) { return (rate * 100).toFixed(1) + '%'; }
+
+  function errorMessage(error) {
+    return (error && error.message) ? error.message : String(error);
+  }
+
+  // ---------------------------------------------------------------- entry form
+
+  function currentRule() {
+    if (state.gameRuleSnapshot) return state.gameRuleSnapshot;
+    var ruleId = $('in-rule').value;
+    return state.rules.filter(function (r) { return r.ruleId === ruleId; })[0] || state.rules[0];
+  }
+
+  /** Rebuilds the rule dropdown on the entry form. */
+  function renderRuleOptions(selectedId) {
+    $('in-rule').innerHTML = state.rules.map(function (rule) {
+      return '<option value="' + escapeHtml(rule.ruleId) + '">' + escapeHtml(rule.name) + '</option>';
+    }).join('');
+    if (selectedId) $('in-rule').value = selectedId;
+  }
+
+  function playerOptions(selectedId) {
+    var options = ['<option value="">-- 選択 --</option>'];
+    state.players.forEach(function (player) {
+      options.push('<option value="' + escapeHtml(player.playerId) + '"' +
+        (player.playerId === selectedId ? ' selected' : '') + '>' +
+        escapeHtml(player.name) + '</option>');
+    });
+    return options.join('');
+  }
+
+  /**
+   * Rebuilds the seat rows for the selected rule, keeping whatever the user
+   * already typed for the seats that still exist.
+   */
+  function renderSeats(preset) {
+    var rule = currentRule();
+    state.rule = rule;
+    var previous = preset || readEntries(true);
+    var html = '';
+    for (var seat = 0; seat < rule.playerCount; seat++) {
+      var prior = previous[seat] || {};
+      html += '<div class="seat-row">' +
+        '<div class="seat-badge">' + SEAT_LABELS[seat] + '</div>' +
+        '<select data-seat="' + seat + '" class="in-player">' + playerOptions(prior.playerId) + '</select>' +
+        '<input type="number" step="100" class="in-score" data-seat="' + seat + '" placeholder="0" value="' +
+        (prior.rawScore === undefined || prior.rawScore === '' ? '' : prior.rawScore) + '">' +
+        '<input type="number" step="1" class="in-chips" data-seat="' + seat + '" placeholder="0" value="' +
+        (prior.chips ? prior.chips : '') + '">' +
+        '</div>';
+    }
+    $('seat-grid').innerHTML = html;
+    Array.prototype.forEach.call($('seat-grid').querySelectorAll('.in-score'), function (input) {
+      input.addEventListener('input', updateScoreSum);
+    });
+    updateScoreSum();
+  }
+
+  /**
+   * Reads the seat rows. With `loose` set, blank fields are kept as blank so the
+   * form can be re-rendered without losing half-typed input.
+   */
+  function readEntries(loose) {
+    var entries = [];
+    Array.prototype.forEach.call($('seat-grid').querySelectorAll('.seat-row'), function (row, seat) {
+      var scoreText = row.querySelector('.in-score').value;
+      var chipText = row.querySelector('.in-chips').value;
+      entries.push({
+        seat: seat,
+        playerId: row.querySelector('.in-player').value,
+        rawScore: loose ? scoreText : Number(scoreText || 0),
+        chips: loose ? chipText : Number(chipText || 0)
+      });
+    });
+    return entries;
+  }
+
+  function updateScoreSum() {
+    var rule = state.rule;
+    if (!rule) return;
+    var sum = 0;
+    var filled = 0;
+    Array.prototype.forEach.call($('seat-grid').querySelectorAll('.in-score'), function (input) {
+      if (input.value !== '') filled++;
+      sum += Number(input.value || 0);
+    });
+    var expected = rule.startPoints * rule.playerCount;
+    var diff = sum - expected;
+    var el = $('score-sum');
+    if (!filled) {
+      el.textContent = '- / ' + expected.toLocaleString();
+      el.className = '';
+      return;
+    }
+    el.textContent = sum.toLocaleString() + ' / ' + expected.toLocaleString() +
+      (diff === 0 ? '' : '（' + (diff > 0 ? '+' : '') + diff.toLocaleString() + '）');
+    el.className = diff === 0 ? 'sum-ok' : 'sum-ng';
+  }
+
+  function collectInput() {
+    return {
+      gameDate: $('in-date').value,
+      ruleId: $('in-rule').value,
+      rule: state.gameRuleSnapshot || undefined,
+      venue: $('in-venue').value,
+      paifuId: $('in-paifu').value,
+      note: $('in-note').value,
+      recordedBy: $('in-recorder').value,
+      entries: readEntries(false)
+    };
+  }
+
+  function validateBeforeSend() {
+    var entries = readEntries(false);
+    var missing = entries.filter(function (e) { return !e.playerId; });
+    if (missing.length) return 'プレイヤーが未選択の席があります。';
+    var ids = entries.map(function (e) { return e.playerId; });
+    if (new Set(ids).size !== ids.length) return '同じプレイヤーが重複しています。';
+    var blank = Array.prototype.filter.call(
+      $('seat-grid').querySelectorAll('.in-score'), function (i) { return i.value === ''; });
+    if (blank.length) return '素点が未入力の席があります。';
+    return null;
+  }
+
+  function renderPreview(preview) {
+    state.lastPreview = preview;
+    var nameOf = {};
+    state.players.forEach(function (p) { nameOf[p.playerId] = p.name; });
+
+    var html = '<div class="card"><h2>計算結果</h2>';
+    preview.warnings.forEach(function (warning) {
+      html += '<div class="warn">⚠ ' + escapeHtml(warning) + '</div>';
+    });
+    html += '<div class="table-wrap"><table><thead><tr>' +
+      '<th>順位</th><th>素点</th><th>素点pt</th><th>ウマ+オカ</th><th>飛び</th><th>収支</th>' +
+      '</tr></thead><tbody>';
+    preview.results.forEach(function (row) {
+      html += '<tr class="rank-' + row.rank + '">' +
+        '<td>' + row.rank + '位 ' + escapeHtml(nameOf[row.playerId] || row.playerId) + '</td>' +
+        '<td>' + row.rawScore.toLocaleString() + '</td>' +
+        '<td>' + fmtPt(row.scorePt) + '</td>' +
+        '<td>' + fmtPt(row.umaPt + row.okaPt) + '</td>' +
+        '<td>' + (row.tobiPt ? fmtPt(row.tobiPt) : '-') + '</td>' +
+        '<td class="' + ptClass(row.totalPt) + '"><strong>' + fmtPt(row.totalPt) + '</strong></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+    $('preview-area').innerHTML = html;
+  }
+
+  function resetForm() {
+    state.editingGameId = null;
+    state.gameRuleSnapshot = null;
+    state.lastPreview = null;
+    Array.prototype.forEach.call($('in-rule').querySelectorAll('[data-snapshot]'), function (option) {
+      option.remove();
+    });
+    $('entry-title').textContent = '対局を登録';
+    $('btn-submit').textContent = 'この内容で登録';
+    $('btn-cancel-edit').style.display = 'none';
+    $('preview-area').innerHTML = '';
+    $('in-paifu').value = '';
+    $('in-note').value = '';
+    renderSeats([]);
+  }
+
+  // ---------------------------------------------------------------- rendering
+
+  function playerTable(players, options) {
+    if (!players.length) return '<div class="empty">データがありません</div>';
+    var showRanks = !options || options.showRanks !== false;
+    var maxRank = players.reduce(function (max, p) {
+      return Math.max(max, p.rankCounts.length);
+    }, 0);
+    var html = '<div class="table-wrap"><table><thead><tr><th>名前</th><th>局数</th><th>合計</th><th>平均</th><th>平順</th>';
+    if (showRanks) html += '<th>着順分布</th>';
+    html += '<th>飛び</th><th>チップ</th></tr></thead><tbody>';
+    players.forEach(function (row) {
+      html += '<tr><td>' + escapeHtml(row.name) + '</td>' +
+        '<td>' + row.games + '</td>' +
+        '<td class="' + ptClass(row.totalPt) + '"><strong>' + fmtPt(row.totalPt) + '</strong></td>' +
+        '<td class="' + ptClass(row.avgPt) + '">' + fmtPt(row.avgPt) + '</td>' +
+        '<td>' + row.avgRank.toFixed(2) + '</td>';
+      if (showRanks) {
+        html += '<td>' + row.rankCounts.slice(0, Math.max(3, maxRank)).join('-') + '</td>';
+      }
+      html += '<td>' + (row.tobiCount || '-') + '</td>' +
+        '<td>' + (row.chips ? (row.chips > 0 ? '+' : '') + row.chips : '-') + '</td></tr>';
+    });
+    return html + '</tbody></table></div>';
+  }
+
+  function gameCard(game, options) {
+    var showActions = options && options.showActions;
+    var head = '<div class="game-head"><span>' + escapeHtml(game.gameDate) + ' / ' +
+      escapeHtml(game.gameId.split('-')[1] || '') + '局目' +
+      (game.venue ? ' / ' + escapeHtml(game.venue) : '') + '</span>';
+    if (game.paifuId) {
+      head += '<a class="paifu-link" target="_blank" rel="noopener" href="https://game.mahjongsoul.com/?paipu=' +
+        encodeURIComponent(game.paifuId) + '">牌譜 ↗</a>';
+    }
+    if (showActions) {
+      head += '<span class="game-actions">' +
+        '<button data-edit="' + escapeHtml(game.gameId) + '">編集</button>' +
+        '<button class="danger" data-delete="' + escapeHtml(game.gameId) + '">削除</button></span>';
+    }
+    head += '</div>';
+
+    var rows = game.results.map(function (row) {
+      return '<tr class="rank-' + row.rank + '"><td>' + row.rank + '位 ' + escapeHtml(row.name) + '</td>' +
+        '<td>' + row.rawScore.toLocaleString() + '</td>' +
+        '<td class="' + ptClass(row.totalPt) + '">' + fmtPt(row.totalPt) + '</td>' +
+        '<td>' + (row.chips ? (row.chips > 0 ? '+' : '') + row.chips : '') + '</td></tr>';
+    }).join('');
+
+    return '<div class="game-card">' + head +
+      '<div class="game-body"><table><tbody>' + rows + '</tbody></table>' +
+      (game.note ? '<div style="font-size:12px;color:var(--muted)">' + escapeHtml(game.note) + '</div>' : '') +
+      '</div></div>';
+  }
+
+  function renderDay(summary) {
+    var html = '<div class="card"><h2>' + escapeHtml(summary.date) + ' の成績（' +
+      summary.gameCount + '半荘）</h2>' + playerTable(summary.players) + '</div>';
+    if (summary.games.length) {
+      html += '<div class="card"><h2>対局一覧</h2>' +
+        summary.games.map(function (game) { return gameCard(game, { showActions: true }); }).join('') +
+        '</div>';
+    }
+    $('day-summary').innerHTML = html;
+    bindGameActions($('day-summary'));
+  }
+
+  function renderHistory(history) {
+    if (!history.games.length) {
+      $('history-list').innerHTML = '<div class="card"><div class="empty">対局がありません</div></div>';
+      return;
+    }
+    var html = '<div class="card"><h2>' + history.games.length + ' / ' + history.total + ' 件</h2>' +
+      history.games.map(function (game) { return gameCard(game, { showActions: true }); }).join('') +
+      '</div>';
+    $('history-list').innerHTML = html;
+    bindGameActions($('history-list'));
+  }
+
+  /**
+   * Draws cumulative point lines. Hand-rolled SVG keeps the app dependency free.
+   */
+  function renderChart(stats) {
+    var labels = stats.seriesLabels || [];
+    var series = stats.series || {};
+    var playerIds = Object.keys(series);
+    if (!labels.length || !playerIds.length) return '';
+
+    var width = 640, height = 220, padLeft = 38, padBottom = 18, padTop = 10, padRight = 8;
+    var values = [];
+    playerIds.forEach(function (id) { values = values.concat(series[id]); });
+    var max = Math.max.apply(null, values.concat([0]));
+    var min = Math.min.apply(null, values.concat([0]));
+    if (max === min) { max += 1; min -= 1; }
+    var span = max - min;
+
+    var x = function (i) {
+      return padLeft + (labels.length === 1 ? 0 :
+        i * (width - padLeft - padRight) / (labels.length - 1));
+    };
+    var y = function (value) {
+      return padTop + (max - value) * (height - padTop - padBottom) / span;
+    };
+
+    // Keep the aspect ratio: stretching the viewBox would distort the stroke
+    // widths and the axis labels.
+    var svg = '<svg class="chart" viewBox="0 0 ' + width + ' ' + height + '">';
+    svg += '<line x1="' + padLeft + '" y1="' + y(0) + '" x2="' + (width - padRight) +
+      '" y2="' + y(0) + '" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 3"/>';
+    svg += '<text x="2" y="' + (y(max) + 4) + '" font-size="10" fill="currentColor" opacity=".6">' +
+      Math.round(max) + '</text>';
+    svg += '<text x="2" y="' + (y(min) + 4) + '" font-size="10" fill="currentColor" opacity=".6">' +
+      Math.round(min) + '</text>';
+
+    var nameOf = {};
+    stats.players.forEach(function (p) { nameOf[p.playerId] = p.name; });
+    var legend = [];
+    playerIds.forEach(function (playerId, index) {
+      var color = SERIES_COLORS[index % SERIES_COLORS.length];
+      var points = series[playerId].map(function (value, i) { return x(i) + ',' + y(value); }).join(' ');
+      svg += '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + points + '"/>';
+      legend.push('<span><i style="background:' + color + '"></i>' +
+        escapeHtml(nameOf[playerId] || playerId) + '</span>');
+    });
+    svg += '</svg>';
+    return '<div class="card"><h2>累積収支の推移</h2>' + svg +
+      '<div class="legend">' + legend.join('') + '</div></div>';
+  }
+
+  function renderStats(stats) {
+    var period = (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
+    var html = '<div class="card"><h2>' + escapeHtml(period) + '（' + stats.gameCount + '半荘）</h2>' +
+      playerTable(stats.players) + '</div>';
+    html += renderChart(stats);
+    if (stats.players.length) {
+      html += '<div class="card"><h2>詳細</h2><div class="table-wrap"><table><thead><tr>' +
+        '<th>名前</th><th>トップ率</th><th>ラス率</th><th>平均素点</th></tr></thead><tbody>' +
+        stats.players.map(function (row) {
+          return '<tr><td>' + escapeHtml(row.name) + '</td>' +
+            '<td>' + fmtPct(row.topRate) + '</td>' +
+            '<td>' + fmtPct(row.lastRate) + '</td>' +
+            '<td>' + row.avgRawScore.toLocaleString() + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+    $('stats-body').innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------- rules
+
+  var UMA_LABELS = ['1位', '2位', '3位', '4位'];
+
+  /** Starting values offered for each table size. */
+  var RULE_DEFAULTS = {
+    3: { startPoints: 35000, returnPoints: 40000, uma: [20, 0, -20], tobiBonus: 10 },
+    4: { startPoints: 25000, returnPoints: 30000, uma: [20, 10, -10, -20], tobiBonus: 10 }
+  };
+
+  function loadRules() {
+    busy(true);
+    return call('apiListRules', true)
+      .then(function (rules) {
+        state.allRules = rules;
+        renderRuleList(rules);
+      })
+      .catch(function (error) { toast(errorMessage(error), true); })
+      .then(function () { busy(false); });
+  }
+
+  function describeRule(rule) {
+    var oka = (rule.returnPoints - rule.startPoints) * rule.playerCount / 1000;
+    return rule.playerCount + '人 / ' +
+      rule.startPoints.toLocaleString() + '点持ち' + rule.returnPoints.toLocaleString() + '点返し / ' +
+      (oka ? 'オカ ' + fmtPt(oka) : 'オカなし') + ' / ' +
+      'ウマ ' + rule.uma.join(',') + ' / ' +
+      (rule.tobiBonus ? '飛び賞 ' + rule.tobiBonus : '飛び賞なし');
+  }
+
+  function renderRuleList(rules) {
+    if (!rules.length) {
+      $('rule-list').innerHTML = '<div class="empty">ルールがありません</div>';
+      return;
+    }
+    $('rule-list').innerHTML = rules.map(function (rule) {
+      return '<div class="rule-item' + (rule.active ? '' : ' inactive') + '">' +
+        '<div class="rule-head"><div style="min-width:0">' +
+        '<div class="rule-name">' + escapeHtml(rule.name) +
+        (rule.active ? '' : '（無効）') + '</div>' +
+        '<div class="rule-detail">' + escapeHtml(describeRule(rule)) + '</div>' +
+        '</div><span class="game-actions">' +
+        '<button data-rule-edit="' + escapeHtml(rule.ruleId) + '">編集</button>' +
+        '<button data-rule-toggle="' + escapeHtml(rule.ruleId) + '">' +
+        (rule.active ? '無効化' : '有効化') + '</button>' +
+        '</span></div></div>';
+    }).join('');
+
+    Array.prototype.forEach.call($('rule-list').querySelectorAll('[data-rule-edit]'), function (button) {
+      button.addEventListener('click', function () {
+        var ruleId = button.getAttribute('data-rule-edit');
+        openRuleEditor(state.allRules.filter(function (r) { return r.ruleId === ruleId; })[0]);
+      });
+    });
+    Array.prototype.forEach.call($('rule-list').querySelectorAll('[data-rule-toggle]'), function (button) {
+      button.addEventListener('click', function () {
+        var ruleId = button.getAttribute('data-rule-toggle');
+        var rule = state.allRules.filter(function (r) { return r.ruleId === ruleId; })[0];
+        setRuleActive(ruleId, !rule.active);
+      });
+    });
+  }
+
+  function editorPlayerCount() {
+    var active = $('rule-player-count').querySelector('.active');
+    return Number(active.getAttribute('data-count'));
+  }
+
+  function renderUmaInputs(playerCount, values) {
+    var html = '';
+    for (var rank = 0; rank < playerCount; rank++) {
+      html += '<div><label for="rule-uma-' + rank + '">' + UMA_LABELS[rank] + '</label>' +
+        '<input type="number" step="1" id="rule-uma-' + rank + '" class="rule-uma" value="' +
+        (values && values[rank] !== undefined ? values[rank] : 0) + '"></div>';
+    }
+    $('rule-uma').innerHTML = html;
+    $('rule-uma').style.gridTemplateColumns = 'repeat(' + playerCount + ', 1fr)';
+    Array.prototype.forEach.call($('rule-uma').querySelectorAll('input'), function (input) {
+      input.addEventListener('input', updateRuleCalc);
+    });
+  }
+
+  function readUmaInputs() {
+    return Array.prototype.map.call($('rule-uma').querySelectorAll('.rule-uma'), function (input) {
+      return Number(input.value || 0);
+    });
+  }
+
+  /** Shows the two values that are derived rather than typed: oka and the uma sum. */
+  function updateRuleCalc() {
+    var playerCount = editorPlayerCount();
+    var start = Number($('rule-start').value || 0);
+    var ret = Number($('rule-return').value || 0);
+    var oka = (ret - start) * playerCount / 1000;
+
+    var okaLine = $('rule-oka');
+    if (ret < start) {
+      okaLine.textContent = '返し点は配給原点以上にしてください';
+      okaLine.className = 'calc-line ng';
+    } else {
+      okaLine.textContent = oka ? '→ オカ ' + fmtPt(oka) + '（1位に加算）' : '→ オカなし';
+      okaLine.className = 'calc-line';
+    }
+
+    var sum = readUmaInputs().reduce(function (a, b) { return a + b; }, 0);
+    var sumLine = $('rule-uma-sum');
+    sumLine.textContent = sum === 0 ? '→ 合計 0 ✓' : '→ 合計 ' + fmtPt(sum) + '（0にしてください）';
+    sumLine.className = 'calc-line' + (sum === 0 ? '' : ' ng');
+  }
+
+  function selectPlayerCount(playerCount, presetValues) {
+    Array.prototype.forEach.call($('rule-player-count').children, function (button) {
+      button.classList.toggle('active', Number(button.getAttribute('data-count')) === playerCount);
+    });
+    var defaults = RULE_DEFAULTS[playerCount];
+    var values = presetValues || defaults;
+    $('rule-start').value = values.startPoints;
+    $('rule-return').value = values.returnPoints;
+    $('rule-tobi').value = values.tobiBonus;
+    renderUmaInputs(playerCount, values.uma);
+    updateRuleCalc();
+  }
+
+  function openRuleEditor(rule) {
+    state.editingRuleId = rule ? rule.ruleId : null;
+    state.editingRuleActive = rule ? rule.active : true;
+    $('rule-editor').style.display = '';
+    $('rule-editor-title').textContent = rule ? 'ルールを編集' : '新しいルール';
+    $('rule-name').value = rule ? rule.name : '';
+    selectPlayerCount(rule ? rule.playerCount : 4, rule || null);
+    $('rule-editor').scrollIntoView({ block: 'start' });
+  }
+
+  function closeRuleEditor() {
+    state.editingRuleId = null;
+    $('rule-editor').style.display = 'none';
+  }
+
+  function saveRule() {
+    var payload = {
+      ruleId: state.editingRuleId || '',
+      name: $('rule-name').value,
+      playerCount: editorPlayerCount(),
+      startPoints: Number($('rule-start').value || 0),
+      returnPoints: Number($('rule-return').value || 0),
+      uma: readUmaInputs(),
+      tobiBonus: Number($('rule-tobi').value || 0),
+      active: state.editingRuleActive === undefined ? true : state.editingRuleActive
+    };
+
+    busy(true);
+    call('apiSaveRule', payload).then(function (saved) {
+      toast(state.editingRuleId ? 'ルールを更新しました' : 'ルールを追加しました');
+      closeRuleEditor();
+      return refreshRuleCaches(saved.ruleId);
+    }).catch(function (error) {
+      toast(errorMessage(error), true);
+    }).then(function () { busy(false); });
+  }
+
+  function setRuleActive(ruleId, active) {
+    busy(true);
+    call('apiSetRuleActive', ruleId, active).then(function () {
+      toast(active ? '有効にしました' : '無効にしました');
+      return refreshRuleCaches();
+    }).catch(function (error) {
+      toast(errorMessage(error), true);
+    }).then(function () { busy(false); });
+  }
+
+  /** Reloads both rule lists so the entry form and the editor stay in step. */
+  function refreshRuleCaches(selectId) {
+    var keepSelection = selectId || $('in-rule').value;
+    return call('apiListRules', true).then(function (rules) {
+      state.allRules = rules;
+      state.rules = rules.filter(function (rule) { return rule.active; });
+      renderRuleList(rules);
+      if (!state.gameRuleSnapshot) {
+        renderRuleOptions(
+          state.rules.some(function (r) { return r.ruleId === keepSelection; }) ? keepSelection : null);
+        renderSeats();
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------- actions
+
+  function bindGameActions(container) {
+    Array.prototype.forEach.call(container.querySelectorAll('[data-edit]'), function (button) {
+      button.addEventListener('click', function () { startEdit(button.getAttribute('data-edit')); });
+    });
+    Array.prototype.forEach.call(container.querySelectorAll('[data-delete]'), function (button) {
+      button.addEventListener('click', function () { deleteGame(button.getAttribute('data-delete')); });
+    });
+  }
+
+  function startEdit(gameId) {
+    busy(true);
+    call('apiGetGame', gameId).then(function (game) {
+      busy(false);
+      switchTab('entry');
+      state.editingGameId = gameId;
+      $('entry-title').textContent = '対局を編集（' + gameId + '）';
+      $('btn-submit').textContent = 'この内容で更新';
+      $('btn-cancel-edit').style.display = '';
+      $('in-date').value = game.gameDate;
+      state.gameRuleSnapshot = game.rule;
+      if (!$('in-rule').querySelector('option[value="' + game.ruleId + '"]')) {
+        // The preset was deactivated or renamed; show the game's own rule instead.
+        var option = document.createElement('option');
+        option.value = game.ruleId;
+        option.textContent = game.rule.name + '（この対局のルール）';
+        option.setAttribute('data-snapshot', '1');
+        $('in-rule').appendChild(option);
+      }
+      $('in-rule').value = game.ruleId;
+      $('in-venue').value = game.venue || '';
+      $('in-paifu').value = game.paifuId || '';
+      $('in-note').value = game.note || '';
+      $('in-recorder').value = game.recordedBy || '';
+      renderSeats(game.results.map(function (row) {
+        return { playerId: row.playerId, rawScore: row.rawScore, chips: row.chips };
+      }));
+      $('preview-area').innerHTML = '';
+      window.scrollTo(0, 0);
+    }).catch(function (error) {
+      busy(false);
+      toast(errorMessage(error), true);
+    });
+  }
+
+  function deleteGame(gameId) {
+    if (!window.confirm(gameId + ' を削除します。よろしいですか？\n（データは残り、集計から除外されます）')) return;
+    busy(true);
+    call('apiDeleteGame', gameId).then(function () {
+      toast('削除しました');
+      return refreshViews();
+    }).catch(function (error) {
+      toast(errorMessage(error), true);
+    }).then(function () { busy(false); });
+  }
+
+  function refreshViews() {
+    var day = $('in-day').value || state.today;
+    return call('apiGetDaySummary', day).then(function (summary) {
+      renderDay(summary);
+      if ($('panel-history').classList.contains('active')) return loadHistory();
+      if ($('panel-stats').classList.contains('active')) return loadStats();
+      return null;
+    });
+  }
+
+  function loadHistory() {
+    busy(true);
+    return call('apiGetHistory', { from: $('hist-from').value, to: $('hist-to').value, limit: 100 })
+      .then(function (history) { renderHistory(history); })
+      .catch(function (error) { toast(errorMessage(error), true); })
+      .then(function () { busy(false); });
+  }
+
+  function loadStats() {
+    busy(true);
+    return call('apiGetStats', { from: $('stats-from').value, to: $('stats-to').value, withSeries: true })
+      .then(function (stats) { renderStats(stats); })
+      .catch(function (error) { toast(errorMessage(error), true); })
+      .then(function () { busy(false); });
+  }
+
+  function switchTab(tab) {
+    ['entry', 'today', 'history', 'stats', 'settings'].forEach(function (name) {
+      $('panel-' + name).classList.toggle('active', name === tab);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tabbar button'), function (button) {
+      button.classList.toggle('active', button.getAttribute('data-tab') === tab);
+    });
+    window.scrollTo(0, 0);
+    if (tab === 'history' && !$('history-list').innerHTML) loadHistory();
+    if (tab === 'stats' && !$('stats-body').innerHTML) loadStats();
+    if (tab === 'settings' && !$('rule-list').innerHTML) loadRules();
+  }
+
+  function submitGame() {
+    var problem = validateBeforeSend();
+    if (problem) { toast(problem, true); return; }
+    var editing = state.editingGameId;
+    if (editing && !window.confirm(editing + ' を更新します。よろしいですか？')) return;
+
+    busy(true);
+    var input = collectInput();
+    var request = editing ? call('apiUpdateGame', editing, input) : call('apiSubmitGame', input);
+    request.then(function (saved) {
+      window.localStorage.setItem('recordedBy', $('in-recorder').value || '');
+      toast(editing ? '更新しました' : '登録しました：' + saved.gameId);
+      if (saved.warnings && saved.warnings.length) toast(saved.warnings[0], true);
+      resetForm();
+      return refreshViews();
+    }).catch(function (error) {
+      toast(errorMessage(error), true);
+    }).then(function () { busy(false); });
+  }
+
+  // ---------------------------------------------------------------- bootstrap
+
+  function bindEvents() {
+    Array.prototype.forEach.call(document.querySelectorAll('.tabbar button'), function (button) {
+      button.addEventListener('click', function () { switchTab(button.getAttribute('data-tab')); });
+    });
+    $('in-rule').addEventListener('change', function () {
+      // Choosing a rule explicitly overrides the edited game's original rule.
+      state.gameRuleSnapshot = null;
+      renderSeats();
+    });
+    $('btn-reset').addEventListener('click', resetForm);
+    $('btn-cancel-edit').addEventListener('click', resetForm);
+    $('btn-submit').addEventListener('click', submitGame);
+
+    $('btn-preview').addEventListener('click', function () {
+      var problem = validateBeforeSend();
+      if (problem) { toast(problem, true); return; }
+      busy(true);
+      call('apiPreviewGame', collectInput()).then(function (preview) {
+        renderPreview(preview);
+      }).catch(function (error) {
+        toast(errorMessage(error), true);
+      }).then(function () { busy(false); });
+    });
+
+    $('btn-add-player').addEventListener('click', function () {
+      var name = $('in-new-player').value.trim();
+      if (!name) { toast('名前を入力してください', true); return; }
+      busy(true);
+      call('apiAddPlayer', name).then(function (player) {
+        $('in-new-player').value = '';
+        return call('apiBootstrap').then(function (data) {
+          state.players = data.players;
+          renderSeats();
+          toast(player.name + ' を追加しました');
+        });
+      }).catch(function (error) {
+        toast(errorMessage(error), true);
+      }).then(function () { busy(false); });
+    });
+
+    $('in-day').addEventListener('change', function () {
+      busy(true);
+      call('apiGetDaySummary', $('in-day').value)
+        .then(renderDay)
+        .catch(function (error) { toast(errorMessage(error), true); })
+        .then(function () { busy(false); });
+    });
+
+    $('btn-rule-new').addEventListener('click', function () { openRuleEditor(null); });
+    $('btn-rule-cancel').addEventListener('click', closeRuleEditor);
+    $('btn-rule-save').addEventListener('click', saveRule);
+    Array.prototype.forEach.call($('rule-player-count').children, function (button) {
+      button.addEventListener('click', function () {
+        selectPlayerCount(Number(button.getAttribute('data-count')));
+      });
+    });
+    ['rule-start', 'rule-return'].forEach(function (id) {
+      $(id).addEventListener('input', updateRuleCalc);
+    });
+
+    $('btn-hist-load').addEventListener('click', loadHistory);
+    $('btn-hist-clear').addEventListener('click', function () {
+      $('hist-from').value = '';
+      $('hist-to').value = '';
+      loadHistory();
+    });
+    $('btn-stats-load').addEventListener('click', loadStats);
+    $('btn-stats-all').addEventListener('click', function () {
+      $('stats-from').value = '';
+      $('stats-to').value = '';
+      loadStats();
+    });
+  }
+
+  function init() {
+    busy(true);
+    call('apiBootstrap').then(function (data) {
+      state.players = data.players;
+      state.rules = data.rules;
+      state.today = data.today;
+
+      if (!state.rules.length) {
+        toast('ルールが未設定です。GASエディタで setup() を実行してください。', true);
+        return;
+      }
+      renderRuleOptions();
+      $('in-date').value = data.today;
+      $('in-day').value = data.today;
+      $('in-recorder').value = window.localStorage.getItem('recordedBy') || '';
+      $('header-sub').textContent = data.today;
+
+      renderSeats([]);
+      renderDay(data.daySummary);
+      if (!state.players.length) toast('まずプレイヤーを追加してください');
+    }).catch(function (error) {
+      toast(errorMessage(error), true);
+    }).then(function () { busy(false); });
+  }
+
+  bindEvents();
+  init();
+})();
+</script>

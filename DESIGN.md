@@ -1,0 +1,224 @@
+# 家族麻雀スコア記録システム 設計書
+
+最終更新: 2026-08-24
+
+## 1. 目的
+
+家族での麻雀（実卓中心）の1半荘ごとの結果を登録し、その日の集計・過去履歴・
+プレイヤー統計を誰でもスマートフォンから閲覧できるようにする。
+
+## 2. 決定事項
+
+| 項目 | 決定 | 理由 |
+|------|------|------|
+| データストア | Google スプレッドシート | 家族規模ならデータ量は年間数千行程度。Drive上で直接目視・手修正でき、バックアップも自動 |
+| アプリ基盤 | Google Apps Script Web App (HtmlService) | 追加のホスティング費用ゼロ。URLひとつで家族全員が利用可能 |
+| 開発形態 | ローカルに素のJS + JSDoc、`clasp` で push | Git管理できる。GASエディタ直編集はバージョン管理不能なので不採用 |
+| 言語 | JavaScript + JSDoc（TypeScriptではない） | GASはグローバルスコープ共有が前提で `import/export` が使えない。JSDocなら型チェックとNodeでの単体テストを両立できる |
+| 公開範囲 | 匿名アクセス可（URLを知る全員） | 家族にGoogleアカウントを強制しない。URLが実質のパスワード |
+| ゲーム種別 | 4人麻雀 / 3人麻雀 | ルールプリセットで切り替え |
+| 収支計算 | 素点 + ウマ + オカ + 飛び賞、チップは別勘定 | 一般的な標準ルール |
+| ルール設定 | 人数・配給原点・返し点・ウマ・飛び賞を個別に設定できるプリセットをアプリ内で管理 | 家では同じルールで何半荘も打つため、都度入力よりプリセット選択が自然 |
+| ルール変更時の履歴 | 対局ごとにルールのスナップショットを保存 | プリセットを編集しても過去の対局の意味が変わらないようにするため |
+| 牌譜 | 雀魂の牌譜IDを任意入力で保存 | 実卓が主。牌譜は「保存とリンク生成」に留める（§7参照） |
+
+## 3. データモデル
+
+すべて1枚のスプレッドシート内の複数シートで保持する。
+`Results` は「1行 = 1人 × 1半荘」の縦持ちとする。これにより日別・期間別・
+対人成績の集計がすべて同じ形のフィルタで書ける。
+
+### Players
+| 列 | 型 | 説明 |
+|----|----|------|
+| playerId | string | `P001` 形式 |
+| name | string | 表示名 |
+| active | boolean | 登録画面の選択肢に出すか |
+| createdAt | datetime | |
+
+### Rules（ルールプリセット）
+| 列 | 型 | 説明 |
+|----|----|------|
+| ruleId | string | `R001` 形式 |
+| name | string | 例「四麻 25000/30000 ウマ10-20」 |
+| playerCount | number | 3 または 4 |
+| startPoints | number | 配給原点（例 25000） |
+| returnPoints | number | 返し点（例 30000） |
+| uma | string | カンマ区切りの順位点。例 `20,10,-10,-20` |
+| tobiBonus | number | 飛び賞[pt]。0で無効 |
+| active | boolean | 登録画面の選択肢に出すか。プリセットは削除せず無効化する |
+
+### Games（1半荘のメタ情報）
+| 列 | 型 | 説明 |
+|----|----|------|
+| gameId | string | `G20260824-001` 形式 |
+| gameDate | date | 集計キーとなる日付 |
+| playedAt | datetime | 登録時刻 |
+| ruleId | string | 由来のプリセット。以降5列はそのスナップショット |
+| ruleName | string | 登録時のルール名 |
+| playerCount | number | 3 または 4 |
+| startPoints | number | 登録時の配給原点 |
+| returnPoints | number | 登録時の返し点 |
+| uma | string | 登録時のウマ（カンマ区切り） |
+| tobiBonus | number | 登録時の飛び賞 |
+| venue | string | 場所（任意） |
+| paifuId | string | 雀魂の牌譜ID（任意） |
+| note | string | メモ（任意） |
+| recordedBy | string | 記録者名（任意） |
+| deleted | boolean | 論理削除フラグ |
+| createdAt | datetime | |
+| updatedAt | datetime | |
+
+### Results（1人 × 1半荘）
+| 列 | 型 | 説明 |
+|----|----|------|
+| resultId | string | `{gameId}-{seat}` |
+| gameId | string | |
+| gameDate | date | 集計高速化のため非正規化して保持 |
+| seat | number | 0=東, 1=南, 2=西, 3=北（起家からの席順） |
+| playerId | string | |
+| rawScore | number | 終局時の素点 |
+| rank | number | 1〜4 |
+| scorePt | number | (rawScore - returnPoints) / 1000 |
+| umaPt | number | 順位点 |
+| okaPt | number | オカ（1位のみ） |
+| tobiPt | number | 飛び賞の授受 |
+| totalPt | number | scorePt + umaPt + okaPt + tobiPt |
+| chips | number | チップ枚数（授受、合計0が正常） |
+| tobi | boolean | 箱下に落ちたか |
+| deleted | boolean | 親GameのdeletedをコピーしFilterを単純化 |
+
+## 4. 収支計算ロジック
+
+```
+1. 順位づけ  : rawScore 降順。同点の場合は seat の小さい方（起家に近い方）が上位
+2. scorePt   : (rawScore - returnPoints) / 1000   ※丸めない
+3. umaPt     : uma[rank - 1]
+4. okaPt     : 1位のみ (returnPoints - startPoints) * playerCount / 1000
+5. tobiPt    : 飛んだ人が -tobiBonus、1位が +tobiBonus × 飛んだ人数
+6. totalPt   : 上記の合計
+```
+
+**不変条件**: `Σ totalPt === 0`。これはテストで担保する。
+
+- scorePt の合計は `-（オカの総額）` になり、1位へのオカ加算で相殺されて0になる
+- ウマの合計は0（プリセット定義時に検証）
+- 飛び賞も授受なので0
+- 素点を1000点単位に丸めると合計が0にならなくなるため、**丸め処理は行わず**、
+  表示時のみ小数第1位まで出す
+
+チップは pt とは独立した勘定として扱い、合計0でない場合は登録時に警告する（保存は可能）。
+
+### ルールのスナップショット
+
+ルールはアプリ内でいつでも編集できる。もし対局が `ruleId` の参照だけを持っていると、
+ウマを変更した瞬間に過去の対局の収支の意味が変わってしまう。これを防ぐため、
+**対局を保存するときにルールの内容そのものを `Games` にコピーする**。
+
+- 集計は `Results` に保存済みの計算結果を読むだけなので、そもそも影響を受けない
+- 過去の対局を編集して再計算するときは、その対局のスナップショットを使う
+  （編集画面でルールを選び直した場合のみ、選んだプリセットが適用される）
+- プリセットは削除せず `active` を `FALSE` にして隠す。対局が参照するIDが
+  解決できなくなるのを避けるため
+
+なお **オカは独立した設定値ではない**。`(返し点 − 配給原点) × 人数` で決まる従属値で
+あり、素点ptの計算にも返し点を使う。独立した「オカpt」欄を設けると二重管理になり
+収支の合計が0でなくなるため、設定するのは返し点である。オカなしは
+「配給原点 = 返し点」で表現する。
+
+## 5. 画面構成
+
+単一のWeb App内でタブ切り替えするSPA。モバイルファースト。
+
+| タブ | 内容 |
+|------|------|
+| 登録 | 日付・ルール・席順・プレイヤー・素点・チップを入力。合計点をリアルタイム検証し、確定前に順位と収支をプレビュー |
+| 今日 | その日の対局一覧と、プレイヤー別の合計pt・平均順位・チップ |
+| 履歴 | 期間で絞った対局一覧。誤入力の訂正・論理削除もここから |
+| 統計 | 期間・プレイヤーで絞った通算成績（対局数、平均順位、順位分布、総pt、平均素点、トップ率、ラス率、飛び率） |
+| 設定 | ルールプリセットの作成・編集・無効化。人数・配給原点・返し点・ウマ・飛び賞を個別に入力し、オカとウマ合計は自動計算して表示・検証する |
+
+## 6. サーバーAPI
+
+フロントからは `google.script.run` で呼び出す。
+
+| 関数 | 用途 |
+|------|------|
+| `apiBootstrap()` | 起動時にプレイヤー・ルール・当日サマリをまとめて取得 |
+| `apiPreviewGame(payload)` | 保存せずに順位と収支を計算して返す |
+| `apiSubmitGame(payload)` | 1半荘を登録 |
+| `apiUpdateGame(gameId, payload)` | 訂正 |
+| `apiDeleteGame(gameId)` | 論理削除（UI側で確認ダイアログ必須） |
+| `apiGetDaySummary(dateStr)` | 日別集計 |
+| `apiGetHistory(opts)` | 履歴一覧 |
+| `apiGetStats(opts)` | 通算統計 |
+| `apiAddPlayer(name)` | プレイヤー追加 |
+| `apiListRules(includeInactive)` | ルールプリセット一覧 |
+| `apiSaveRule(rule)` | ルールの作成・更新（ruleIdなしで新規） |
+| `apiSetRuleActive(ruleId, active)` | ルールの有効・無効切り替え |
+
+- 書き込みは `LockService` で排他制御する（家族が同時に登録する可能性がある）
+- 削除は物理削除せず `deleted` フラグを立てるのみ
+
+## 7. 牌譜機能について（将来課題）
+
+雀魂・天鳳ともに**公式の牌譜取得APIは存在しない**。雀魂の牌譜はWebSocket +
+Protobuf + 認証を必要とし、GASの `UrlFetchApp` からは実質取得できない。
+
+したがって現段階のスコープは以下に限定する。
+
+- 牌譜IDを `Games.paifuId` に保存する
+- 閲覧画面で `https://game.mahjongsoul.com/?paipu={paifuId}` へのリンクを生成する
+
+将来、詳細なプレイ統計（和了率・放銃率・副露率など）を取りたい場合は、
+GASの外側（ローカルのNodeスクリプト等）で牌譜を取得・解析し、結果だけを
+本スプレッドシートの別シートに書き戻す構成が現実的である。
+
+## 8. セットアップ手順
+
+1. `npm install`（型定義とclaspのみ。実行時依存はゼロ）
+2. `npx clasp login`
+3. `npx clasp create --type webapp --title "Family Mahjong Record" --rootDir src`
+4. `npx clasp push`
+5. GASエディタで `setup()` を1度実行 → スプレッドシートが新規作成され、
+   IDがスクリプトプロパティに保存され、初期シートとデフォルトルールが投入される
+6. 「デプロイ > 新しいデプロイ > ウェブアプリ」で、実行ユーザー「自分」・
+   アクセス「全員」を選択して公開し、URLを家族に共有する
+
+## 9. ローカル開発とテスト
+
+デプロイ前にローカルのブラウザで動作確認できるようにしてある。
+
+### 仕組み
+
+Apps Script は「複数ファイルが 1 つのグローバルスコープを共有する」という
+特殊な実行環境である。これを Node の `vm` モジュールで再現している。
+
+1. `dev/app-context.js` が `src/*.js` を 1 つの VM コンテキストに順に評価する
+2. GAS のグローバル（`PropertiesService` / `LockService` / `Logger`）はスタブを注入
+3. `src/Store.js` の代わりに `dev/LocalStore.js` を最後に評価し、
+   同名のグローバル関数を上書きする（データは JSON ファイルへ）
+4. `dev/server.js` が `index.html` を `include()` を解決して配信し、
+   `google.script.run` を `fetch('/api/...')` に橋渡しするシムを注入する
+
+結果として、**デプロイされるコードそのもの**がローカルで動く。差し替えている
+のはストレージ層 1 ファイルだけである。
+
+### テストの三層
+
+| コマンド | 対象 | 方式 |
+|---|---|---|
+| `tests/domain.test.js` / `tests/stats.test.js` | 計算・集計ロジック | `src` の関数を現レルムに読み込んで直接検証 |
+| `tests/api.test.js` | サーバーAPI全体 | 一時DBに対して登録・訂正・削除・集計を実行 |
+| `tests/e2e.test.js` | 画面 | ヘッドレス Chrome で実UIを操作し、結果をサーバーへPOST |
+
+E2E はブラウザ内スクリプト（`dev/e2e-script.js`）が UI を操作して JSON レポートを
+`POST /e2e-report` で返す方式にしてある。`--dump-dom` のタイミング依存や
+自動化ライブラリへの依存を避けるためである。
+
+### 単体テストのための制約
+
+`src/*.js` には `module.exports` を置かない。Apps Script にモジュールは存在せず、
+また TypeScript が JS ファイルをモジュールと判定するとファイル間のグローバル共有が
+壊れて型チェックが通らなくなるため。テストからは `dev/app-context.js` の
+`loadPureFunctions()` 経由で読み込む。

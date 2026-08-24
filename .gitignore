@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project specific
+.clasp.json
+.clasprc.json
+dev/data/
+node_modules/

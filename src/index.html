@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <?!= include('css'); ?>
+</head>
+<body>
+  <header>
+    <h1>家族麻雀 スコア記録</h1>
+    <span class="sub" id="header-sub"></span>
+  </header>
+
+  <main>
+    <!-- ===== 登録 ===== -->
+    <section id="panel-entry" class="panel active">
+      <div class="card">
+        <h2 id="entry-title">対局を登録</h2>
+        <div class="field-row">
+          <div>
+            <label for="in-date">日付</label>
+            <input type="date" id="in-date">
+          </div>
+          <div>
+            <label for="in-rule">ルール</label>
+            <select id="in-rule"></select>
+          </div>
+        </div>
+
+        <div class="seat-head">
+          <span>席</span><span>プレイヤー</span><span>素点</span><span>チップ</span>
+        </div>
+        <div class="seat-grid" id="seat-grid"></div>
+
+        <div class="sum-line">
+          <span>素点合計</span>
+          <span id="score-sum">-</span>
+        </div>
+
+        <details>
+          <summary>詳細（場所・牌譜ID・メモ）</summary>
+          <div class="field-row">
+            <div>
+              <label for="in-venue">場所</label>
+              <input type="text" id="in-venue" placeholder="自宅など">
+            </div>
+            <div>
+              <label for="in-recorder">記録者</label>
+              <input type="text" id="in-recorder" placeholder="任意">
+            </div>
+          </div>
+          <div>
+            <label for="in-paifu">雀魂 牌譜ID（任意）</label>
+            <input type="text" id="in-paifu" placeholder="241224-xxxxxxxx-xxxx-...">
+          </div>
+          <div style="margin-top:10px">
+            <label for="in-note">メモ</label>
+            <input type="text" id="in-note" placeholder="任意">
+          </div>
+        </details>
+      </div>
+
+      <div id="preview-area"></div>
+
+      <div class="btn-row" style="margin-bottom:12px">
+        <button id="btn-preview">計算する</button>
+        <button id="btn-reset">クリア</button>
+      </div>
+      <button class="primary" id="btn-submit">この内容で登録</button>
+      <div style="height:12px"></div>
+      <button id="btn-cancel-edit" style="display:none;width:100%">編集をやめる</button>
+
+      <div class="card" style="margin-top:12px">
+        <h2>プレイヤー追加</h2>
+        <div class="field-row" style="margin-bottom:0">
+          <div><input type="text" id="in-new-player" placeholder="名前"></div>
+          <div style="flex:0 0 90px"><button id="btn-add-player" style="width:100%">追加</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 今日 ===== -->
+    <section id="panel-today" class="panel">
+      <div class="card">
+        <h2>日別集計</h2>
+        <label for="in-day">日付</label>
+        <input type="date" id="in-day">
+      </div>
+      <div id="day-summary"></div>
+    </section>
+
+    <!-- ===== 履歴 ===== -->
+    <section id="panel-history" class="panel">
+      <div class="card">
+        <h2>期間で絞り込み</h2>
+        <div class="field-row" style="margin-bottom:0">
+          <div><label for="hist-from">開始</label><input type="date" id="hist-from"></div>
+          <div><label for="hist-to">終了</label><input type="date" id="hist-to"></div>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-hist-load">表示</button>
+          <button id="btn-hist-clear">全期間</button>
+        </div>
+      </div>
+      <div id="history-list"></div>
+    </section>
+
+    <!-- ===== 統計 ===== -->
+    <section id="panel-stats" class="panel">
+      <div class="card">
+        <h2>集計期間</h2>
+        <div class="field-row" style="margin-bottom:0">
+          <div><label for="stats-from">開始</label><input type="date" id="stats-from"></div>
+          <div><label for="stats-to">終了</label><input type="date" id="stats-to"></div>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button id="btn-stats-load">集計</button>
+          <button id="btn-stats-all">全期間</button>
+        </div>
+      </div>
+      <div id="stats-body"></div>
+    </section>
+    <!-- ===== 設定 ===== -->
+    <section id="panel-settings" class="panel">
+      <div class="card">
+        <h2>ルール</h2>
+        <p class="hint">
+          ルールを変更しても、登録済みの対局は登録時のルールのまま集計されます。
+        </p>
+        <div id="rule-list"></div>
+        <button id="btn-rule-new" style="width:100%;margin-top:10px">＋ 新しいルール</button>
+      </div>
+
+      <div class="card" id="rule-editor" style="display:none">
+        <h2 id="rule-editor-title">新しいルール</h2>
+
+        <div style="margin-bottom:10px">
+          <label for="rule-name">ルール名</label>
+          <input type="text" id="rule-name" placeholder="四麻 25000/30000 ウマ10-20" maxlength="40">
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label>人数</label>
+          <div class="btn-row" id="rule-player-count">
+            <button type="button" data-count="4" class="choice active">4人（四麻）</button>
+            <button type="button" data-count="3" class="choice">3人（三麻）</button>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div>
+            <label for="rule-start">配給原点</label>
+            <input type="number" id="rule-start" step="100" value="25000">
+          </div>
+          <div>
+            <label for="rule-return">返し点</label>
+            <input type="number" id="rule-return" step="100" value="30000">
+          </div>
+        </div>
+        <div class="calc-line" id="rule-oka">オカ -</div>
+
+        <label style="margin-top:10px">ウマ（順位点）</label>
+        <div class="uma-grid" id="rule-uma"></div>
+        <div class="calc-line" id="rule-uma-sum">合計 -</div>
+
+        <div style="margin-top:10px">
+          <label for="rule-tobi">飛び賞（pt / 0で無効）</label>
+          <input type="number" id="rule-tobi" step="1" value="10">
+        </div>
+
+        <div class="btn-row" style="margin-top:14px">
+          <button class="primary" id="btn-rule-save" style="width:auto;flex:1">保存</button>
+          <button id="btn-rule-cancel">キャンセル</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-tab="entry" class="active"><span class="icon">🀄</span>登録</button>
+    <button data-tab="today"><span class="icon">📅</span>今日</button>
+    <button data-tab="history"><span class="icon">📜</span>履歴</button>
+    <button data-tab="stats"><span class="icon">📊</span>統計</button>
+    <button data-tab="settings"><span class="icon">⚙️</span>設定</button>
+  </nav>
+
+  <div id="toast"></div>
+  <div id="overlay">通信中…</div>
+
+  <?!= include('js'); ?>
+</body>
+</html>

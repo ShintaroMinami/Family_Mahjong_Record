@@ -1,0 +1,23 @@
+{
+  "name": "family-mahjong-record",
+  "version": "0.1.0",
+  "description": "Family mahjong score tracker on Google Apps Script + Google Sheets",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/domain.test.js tests/stats.test.js tests/api.test.js",
+    "typecheck": "tsc --noEmit",
+    "push": "clasp push",
+    "open": "clasp open",
+    "dev": "node dev/local-server.js",
+    "dev:seed": "node dev/local-server.js --seed",
+    "dev:reset": "node dev/local-server.js --reset --seed",
+    "test:e2e": "node --test --test-timeout 120000 tests/e2e.test.js",
+    "test:all": "npm test && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "@types/google-apps-script": "^1.0.83",
+    "typescript": "^5.5.4"
+  }
+}
