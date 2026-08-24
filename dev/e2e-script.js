@@ -70,6 +70,35 @@
   }
 
   /**
+   * Returns the visible form controls that stick out of their own card.
+   *
+   * iOS sizes date inputs and selects differently from text inputs, so a row of
+   * mixed controls is where the layout breaks first.
+   */
+  function overflowingFields() {
+    return $$('.panel.active input, .panel.active select').filter(function (el) {
+      var card = el.closest('.card');
+      if (!card || !el.offsetParent) return false;
+      var box = el.getBoundingClientRect();
+      var bounds = card.getBoundingClientRect();
+      return box.right > bounds.right + 1 || box.left < bounds.left - 1;
+    }).map(function (el) { return el.id || el.className; });
+  }
+
+  /** Checks that two controls ended up the same height. */
+  function sameHeight(selectorA, selectorB) {
+    var a = $(selectorA).getBoundingClientRect().height;
+    var b = $(selectorB).getBoundingClientRect().height;
+    return { ok: Math.abs(a - b) < 1, detail: Math.round(a) + 'px / ' + Math.round(b) + 'px' };
+  }
+
+  /** Asserts the active panel has no control spilling out of its card. */
+  function checkNoOverflow(label) {
+    var overflowing = overflowingFields();
+    check(label + 'の入力欄がカード内に収まる', overflowing.length === 0, overflowing.join(', '));
+  }
+
+  /**
    * Publishes the report.
    *
    * It is posted back to the dev server, which is what the test runner waits on;
@@ -113,6 +142,10 @@
         $('#seat-grid .in-player').options.length);
       check('初期表示: 日付が入る', /^\d{4}-\d{2}-\d{2}$/.test($('#in-date').value), $('#in-date').value);
 
+      var pair = sameHeight('#in-date', '#in-rule');
+      check('登録: 日付とルールの高さが揃う', pair.ok, pair.detail);
+      checkNoOverflow('登録');
+
       var root = document.documentElement;
       check('モバイル幅で横スクロールが出ない',
         root.scrollWidth <= root.clientWidth + 1,
@@ -135,6 +168,8 @@
 
       check('素点合計が一致すると sum-ok になる', $('#score-sum').className === 'sum-ok',
         $('#score-sum').className + ' / ' + textOf('#score-sum'));
+      // Values are in the fields now, which is when a too-narrow column shows up.
+      checkNoOverflow('入力後の登録');
 
       click($('#btn-preview'));
       return waitFor('計算結果', function () { return $('#preview-area table'); });
@@ -173,6 +208,7 @@
       click($('[data-tab="today"]'));
       check('今日タブが開く', $('#panel-today').classList.contains('active'));
       check('日別サマリに合計行がある', $$('#day-summary table tbody tr').length > 0);
+      checkNoOverflow('今日');
 
       // --- history tab ------------------------------------------------------
       click($('[data-tab="history"]'));
@@ -180,6 +216,9 @@
     }).then(function () {
       check('履歴に対局が並ぶ', $$('#history-list .game-card').length > 0,
         $$('#history-list .game-card').length);
+      var histPair = sameHeight('#hist-from', '#hist-to');
+      check('履歴: 開始と終了の高さが揃う', histPair.ok, histPair.detail);
+      checkNoOverflow('履歴');
       check('履歴に編集ボタンがある', $$('#history-list [data-edit]').length > 0);
 
       // --- edit flow --------------------------------------------------------
@@ -234,6 +273,9 @@
       return waitFor('統計の読み込み', function () { return $('#stats-body table'); });
     }).then(function () {
       check('統計テーブルが描画される', $$('#stats-body table tbody tr').length > 0);
+      var statsPair = sameHeight('#stats-from', '#stats-to');
+      check('統計: 開始と終了の高さが揃う', statsPair.ok, statsPair.detail);
+      checkNoOverflow('統計');
       check('累積グラフが描画される', $$('#stats-body svg polyline').length > 0,
         $$('#stats-body svg polyline').length);
       check('凡例が出る', $$('#stats-body .legend span').length > 0);
@@ -255,6 +297,7 @@
     }).then(function () {
       check('ルールが一覧表示される', $$('#rule-list .rule-item').length === 2,
         $$('#rule-list .rule-item').length);
+      checkNoOverflow('設定');
 
       click($('#btn-rule-new'));
       check('新規ルールのフォームが開く', $('#rule-editor').style.display !== 'none');

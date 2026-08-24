@@ -89,11 +89,37 @@
   }
   input, select, textarea {
     width: 100%;
+    /* Flex and grid children default to min-width:auto. iOS date inputs refuse
+       to shrink below their intrinsic content width without this and push the
+       row wider than the card. */
+    min-width: 0;
+    /* iOS zooms the whole page when a focused field is smaller than 16px. */
+    font-size: 16px;
+    /* Date inputs, selects and text inputs each size themselves differently on
+       iOS, so pin the box rather than letting every control pick its own
+       height. 44px is also the minimum comfortable tap target. */
+    height: 44px;
     padding: 9px 10px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
   }
+  textarea { height: auto; }
+
+  /* Without this iOS renders its own date widget, which ignores the box above. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+  }
+
+  /* The spinners eat horizontal space that the narrow score columns need. */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
   input:focus, select:focus, textarea:focus {
     outline: 2px solid var(--accent);
     outline-offset: -1px;
@@ -109,6 +135,7 @@
     background: var(--surface-alt);
     border-radius: 8px;
     padding: 9px 14px;
+    min-height: 44px;
   }
   button:active { transform: translateY(1px); }
   button.primary {
@@ -138,7 +165,7 @@
   .seat-badge {
     display: grid;
     place-items: center;
-    height: 32px;
+    height: 44px;
     border-radius: 8px;
     background: var(--accent-weak);
     color: var(--accent);
@@ -214,7 +241,7 @@
   }
   .game-body { padding: 4px 10px 8px; }
   .game-actions { display: flex; gap: 6px; }
-  .game-actions button { padding: 3px 9px; font-size: 12px; }
+  .game-actions button { padding: 3px 9px; font-size: 12px; min-height: 0; }
   .paifu-link { color: var(--accent); text-decoration: none; font-size: 12px; }
 
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
@@ -253,7 +280,12 @@
   }
   .rule-item .rule-name { font-weight: 600; }
   .rule-item .rule-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .rule-item .game-actions button { padding: 3px 9px; font-size: 12px; white-space: nowrap; }
+  .rule-item .game-actions button {
+    padding: 3px 9px;
+    font-size: 12px;
+    white-space: nowrap;
+    min-height: 0;
+  }
 
   /* ---- tab bar ---- */
   nav.tabbar {
@@ -270,6 +302,7 @@
     border: none;
     background: none;
     border-radius: 0;
+    min-height: 0;
     height: var(--tabbar-height);
     display: flex;
     flex-direction: column;
