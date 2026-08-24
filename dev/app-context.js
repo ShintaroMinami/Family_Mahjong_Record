@@ -48,7 +48,12 @@ function createAppContext(options) {
   const propsPath = path.join(dataDir, 'properties.json');
 
   fs.mkdirSync(dataDir, { recursive: true });
-  if (options.reset && fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+  if (options.reset) {
+    // Properties go too: a passcode left over from a previous run would make
+    // the reseeded database unreachable.
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+    if (fs.existsSync(propsPath)) fs.unlinkSync(propsPath);
+  }
 
   const readProps = () =>
     fs.existsSync(propsPath) ? JSON.parse(fs.readFileSync(propsPath, 'utf8')) : {};
