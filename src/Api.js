@@ -255,14 +255,17 @@ function withNames_(stats, nameMap) {
 /**
  * Returns everything the UI needs on startup.
  * @returns {Record<string, any>}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiBootstrap() {
+function apiBootstrap(passcode) {
+  requirePasscode_(passcode);
   var today = todayKey();
   return {
     today: today,
     players: repoListPlayers(false),
     rules: repoListRules(false),
-    daySummary: apiGetDaySummary(today)
+    daySummary: apiGetDaySummary(today, passcode),
+    passcodeRequired: apiAuthStatus().required
   };
 }
 
@@ -270,8 +273,10 @@ function apiBootstrap() {
  * Adds a player.
  * @param {string} name
  * @returns {PlayerRecord}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiAddPlayer(name) {
+function apiAddPlayer(name, passcode) {
+  requirePasscode_(passcode);
   return withLock(function () { return repoAddPlayer(name); });
 }
 
@@ -279,8 +284,10 @@ function apiAddPlayer(name) {
  * Computes ranks and balances without saving, for the confirmation screen.
  * @param {GameInput} input
  * @returns {{results: ComputedResult[], warnings: string[]}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiPreviewGame(input) {
+function apiPreviewGame(input, passcode) {
+  requirePasscode_(passcode);
   var parsed = parseGameInput_(input);
   return {
     results: computeGameResults(parsed.entries, parsed.rule),
@@ -292,8 +299,10 @@ function apiPreviewGame(input) {
  * Saves one game.
  * @param {GameInput} input
  * @returns {{gameId: string, results: ComputedResult[], warnings: string[]}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiSubmitGame(input) {
+function apiSubmitGame(input, passcode) {
+  requirePasscode_(passcode);
   var parsed = parseGameInput_(input);
   var computed = computeGameResults(parsed.entries, parsed.rule);
   var warnings = validateGameEntries(parsed.entries, parsed.rule);
@@ -323,8 +332,10 @@ function apiSubmitGame(input) {
  * @param {string} gameId
  * @param {GameInput} input
  * @returns {{gameId: string, results: ComputedResult[], warnings: string[]}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiUpdateGame(gameId, input) {
+function apiUpdateGame(gameId, input, passcode) {
+  requirePasscode_(passcode);
   var parsed = parseGameInput_(input);
   var computed = computeGameResults(parsed.entries, parsed.rule);
   var warnings = validateGameEntries(parsed.entries, parsed.rule);
@@ -352,8 +363,10 @@ function apiUpdateGame(gameId, input) {
  * Marks a game as deleted. The rows stay in the sheet so a mistake is recoverable.
  * @param {string} gameId
  * @returns {{gameId: string}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiDeleteGame(gameId) {
+function apiDeleteGame(gameId, passcode) {
+  requirePasscode_(passcode);
   return withLock(function () {
     repoSoftDeleteGame(gameId);
     return { gameId: gameId };
@@ -364,8 +377,10 @@ function apiDeleteGame(gameId) {
  * Returns one day's games plus a per-player summary of that day.
  * @param {string} dateKey 'YYYY-MM-DD'
  * @returns {Record<string, any>}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiGetDaySummary(dateKey) {
+function apiGetDaySummary(dateKey, passcode) {
+  requirePasscode_(passcode);
   var date = normalizeDateKey(dateKey) || todayKey();
   var games = repoListGames({ from: date, to: date });
   var results = repoListResults({ gameIds: games.map(function (g) { return g.gameId; }) });
@@ -387,8 +402,10 @@ function apiGetDaySummary(dateKey) {
  * Returns games in a period, newest first.
  * @param {{from?: string, to?: string, limit?: number}} [options]
  * @returns {Record<string, any>}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiGetHistory(options) {
+function apiGetHistory(options, passcode) {
+  requirePasscode_(passcode);
   var opts = options || {};
   var games = repoListGames({
     from: normalizeDateKey(opts.from || '') || undefined,
@@ -408,8 +425,10 @@ function apiGetHistory(options) {
  * Returns aggregated statistics for a period.
  * @param {{from?: string, to?: string, withSeries?: boolean}} [options]
  * @returns {Record<string, any>}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiGetStats(options) {
+function apiGetStats(options, passcode) {
+  requirePasscode_(passcode);
   var opts = options || {};
   var from = normalizeDateKey(opts.from || '') || undefined;
   var to = normalizeDateKey(opts.to || '') || undefined;
@@ -440,8 +459,10 @@ function apiGetStats(options) {
  * Returns one game in the shape the edit form expects.
  * @param {string} gameId
  * @returns {Record<string, any>}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiGetGame(gameId) {
+function apiGetGame(gameId, passcode) {
+  requirePasscode_(passcode);
   var game = repoListGames({ includeDeleted: true }).filter(function (g) {
     return g.gameId === gameId;
   })[0];
@@ -456,8 +477,10 @@ function apiGetGame(gameId) {
  * Lists rule presets for the rule editor.
  * @param {boolean} [includeInactive]
  * @returns {(RuleConfig & {active: boolean})[]}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiListRules(includeInactive) {
+function apiListRules(includeInactive, passcode) {
+  requirePasscode_(passcode);
   return repoListRules(!!includeInactive);
 }
 
@@ -468,8 +491,10 @@ function apiListRules(includeInactive) {
  *
  * @param {Record<string, any>} input Without ruleId a new preset is created.
  * @returns {RuleConfig & {active: boolean}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiSaveRule(input) {
+function apiSaveRule(input, passcode) {
+  requirePasscode_(passcode);
   var rule = parseRuleInput_(input);
   return withLock(function () { return repoSaveRule(rule); });
 }
@@ -481,8 +506,10 @@ function apiSaveRule(input) {
  * @param {string} ruleId
  * @param {boolean} active
  * @returns {RuleConfig & {active: boolean}}
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
-function apiSetRuleActive(ruleId, active) {
+function apiSetRuleActive(ruleId, active, passcode) {
+  requirePasscode_(passcode);
   return withLock(function () {
     if (!active) {
       var remaining = repoListRules(false).filter(function (rule) {

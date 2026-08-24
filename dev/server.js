@@ -19,6 +19,9 @@ const { renderIndexHtml } = require('./app-context');
  */
 const E2E_SCRIPT = process.env.E2E_SCRIPT || path.join(__dirname, 'e2e-script.js');
 
+/** Injected for ?e2e=gate: the passcode screen needs its own fresh session. */
+const E2E_GATE_SCRIPT = path.join(__dirname, 'e2e-gate-script.js');
+
 /**
  * Builds the google.script.run shim that forwards calls to this server.
  *
@@ -109,8 +112,10 @@ function createServer(app, options) {
     try {
       if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const shim = runShim(app.apiNames);
-        const head = url.searchParams.get('e2e')
-          ? `${shim}\n<script>\n${fs.readFileSync(E2E_SCRIPT, 'utf8')}\n</script>`
+        const e2eMode = url.searchParams.get('e2e');
+        const scenario = e2eMode === 'gate' ? E2E_GATE_SCRIPT : E2E_SCRIPT;
+        const head = e2eMode
+          ? `${shim}\n<script>\n${fs.readFileSync(scenario, 'utf8')}\n</script>`
           : shim;
         response.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',

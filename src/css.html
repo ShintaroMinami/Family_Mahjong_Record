@@ -302,6 +302,29 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.error { background: var(--minus); }
 
+  /* ---- passcode gate ---- */
+  #gate {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    place-items: center;
+    padding: 20px;
+    background: var(--bg);
+  }
+  #gate.show { display: grid; }
+  .gate-box {
+    width: 100%;
+    max-width: 320px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 18px;
+  }
+  .gate-box h1 { margin: 0 0 4px; font-size: 17px; }
+  .gate-box input { margin-bottom: 12px; }
+  .gate-box .warn { margin-top: 0; }
+
   #overlay {
     position: fixed;
     inset: 0;

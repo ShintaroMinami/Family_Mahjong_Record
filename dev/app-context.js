@@ -21,6 +21,7 @@ const LOAD_ORDER = [
   path.join(SRC, 'Schema.js'),
   path.join(SRC, 'Domain.js'),
   path.join(SRC, 'Stats.js'),
+  path.join(SRC, 'Auth.js'),
   path.join(SRC, 'Repo.js'),
   path.join(SRC, 'Api.js'),
   path.join(SRC, 'Code.js'),

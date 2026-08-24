@@ -18,18 +18,22 @@
     gameRuleSnapshot: null,
     editingRuleId: null,
     editingRuleActive: true,
-    lastPreview: null
+    lastPreview: null,
+    // The shared passcode, remembered per browser. Empty when the gate is off.
+    passcode: ''
   };
+
+  var PASSCODE_STORAGE_KEY = 'mahjongPasscode';
 
   // ---------------------------------------------------------------- helpers
 
   function $(id) { return document.getElementById(id); }
 
   /**
-   * Calls a server function and resolves with its return value.
+   * Calls a server function that needs no passcode.
    * google.script.run is callback based, so wrap it once here.
    */
-  function call(name) {
+  function callPublic(name) {
     var args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resolve, reject) {
       google.script.run
@@ -37,6 +41,29 @@
         .withFailureHandler(reject)
         [name].apply(null, args);
     });
+  }
+
+  /**
+   * Calls a server function, appending the passcode as the last argument.
+   * Every guarded server function takes it in that position.
+   */
+  function call(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    args.push(state.passcode);
+    return callPublic.apply(null, [name].concat(args));
+  }
+
+  /**
+   * Reports a failed call, falling back to the passcode screen when the server
+   * says the passcode is missing or wrong.
+   */
+  function handleError(error) {
+    var message = errorMessage(error);
+    if (message.indexOf('AUTH_REQUIRED') >= 0) {
+      showGate('合言葉が正しくありません。もう一度入力してください。');
+      return;
+    }
+    toast(message, true);
   }
 
   function escapeHtml(value) {
@@ -393,7 +420,7 @@
         state.allRules = rules;
         renderRuleList(rules);
       })
-      .catch(function (error) { toast(errorMessage(error), true); })
+      .catch(function (error) { handleError(error); })
       .then(function () { busy(false); });
   }
 
@@ -532,7 +559,7 @@
       closeRuleEditor();
       return refreshRuleCaches(saved.ruleId);
     }).catch(function (error) {
-      toast(errorMessage(error), true);
+      handleError(error);
     }).then(function () { busy(false); });
   }
 
@@ -542,7 +569,7 @@
       toast(active ? '有効にしました' : '無効にしました');
       return refreshRuleCaches();
     }).catch(function (error) {
-      toast(errorMessage(error), true);
+      handleError(error);
     }).then(function () { busy(false); });
   }
 
@@ -603,7 +630,7 @@
       window.scrollTo(0, 0);
     }).catch(function (error) {
       busy(false);
-      toast(errorMessage(error), true);
+      handleError(error);
     });
   }
 
@@ -614,7 +641,7 @@
       toast('削除しました');
       return refreshViews();
     }).catch(function (error) {
-      toast(errorMessage(error), true);
+      handleError(error);
     }).then(function () { busy(false); });
   }
 
@@ -632,7 +659,7 @@
     busy(true);
     return call('apiGetHistory', { from: $('hist-from').value, to: $('hist-to').value, limit: 100 })
       .then(function (history) { renderHistory(history); })
-      .catch(function (error) { toast(errorMessage(error), true); })
+      .catch(function (error) { handleError(error); })
       .then(function () { busy(false); });
   }
 
@@ -640,7 +667,7 @@
     busy(true);
     return call('apiGetStats', { from: $('stats-from').value, to: $('stats-to').value, withSeries: true })
       .then(function (stats) { renderStats(stats); })
-      .catch(function (error) { toast(errorMessage(error), true); })
+      .catch(function (error) { handleError(error); })
       .then(function () { busy(false); });
   }
 
@@ -673,8 +700,76 @@
       resetForm();
       return refreshViews();
     }).catch(function (error) {
-      toast(errorMessage(error), true);
+      handleError(error);
     }).then(function () { busy(false); });
+  }
+
+  // ---------------------------------------------------------------- passcode
+
+  function showGate(message) {
+    $('gate').classList.add('show');
+    var error = $('gate-error');
+    if (message) {
+      error.textContent = message;
+      error.style.display = '';
+    } else {
+      error.style.display = 'none';
+    }
+    $('gate-pass').focus();
+  }
+
+  function hideGate() {
+    $('gate').classList.remove('show');
+    $('gate-pass').value = '';
+    $('gate-error').style.display = 'none';
+  }
+
+  function rememberPasscode(value) {
+    state.passcode = value;
+    try {
+      if (value) window.localStorage.setItem(PASSCODE_STORAGE_KEY, value);
+      else window.localStorage.removeItem(PASSCODE_STORAGE_KEY);
+    } catch (error) {
+      // Private browsing can refuse localStorage; the passcode then lasts for
+      // this tab only, which is still usable.
+    }
+  }
+
+  function submitGate() {
+    var value = $('gate-pass').value;
+    if (!value) { showGate('合言葉を入力してください。'); return; }
+
+    busy(true);
+    callPublic('apiVerifyPasscode', value).then(function (result) {
+      if (!result.ok) {
+        busy(false);
+        showGate('合言葉が違います。');
+        return null;
+      }
+      rememberPasscode(value);
+      hideGate();
+      return bootstrap();
+    }).catch(function (error) {
+      busy(false);
+      toast(errorMessage(error), true);
+    });
+  }
+
+  function renderPasscodeState(required) {
+    $('passcode-state').textContent = required
+      ? '設定済みです。アクセスするには合言葉の入力が必要です。'
+      : '未設定です。URLを知っていれば誰でもアクセスできます。';
+    $('btn-passcode-clear').style.display = required ? '' : 'none';
+  }
+
+  function savePasscode(newValue) {
+    busy(true);
+    call('apiSetPasscode', newValue).then(function (result) {
+      rememberPasscode(newValue);
+      $('in-passcode').value = '';
+      renderPasscodeState(result.required);
+      toast(newValue ? '合言葉を変更しました' : '合言葉を解除しました');
+    }).catch(handleError).then(function () { busy(false); });
   }
 
   // ---------------------------------------------------------------- bootstrap
@@ -699,7 +794,7 @@
       call('apiPreviewGame', collectInput()).then(function (preview) {
         renderPreview(preview);
       }).catch(function (error) {
-        toast(errorMessage(error), true);
+        handleError(error);
       }).then(function () { busy(false); });
     });
 
@@ -715,7 +810,7 @@
           toast(player.name + ' を追加しました');
         });
       }).catch(function (error) {
-        toast(errorMessage(error), true);
+        handleError(error);
       }).then(function () { busy(false); });
     });
 
@@ -723,8 +818,23 @@
       busy(true);
       call('apiGetDaySummary', $('in-day').value)
         .then(renderDay)
-        .catch(function (error) { toast(errorMessage(error), true); })
+        .catch(function (error) { handleError(error); })
         .then(function () { busy(false); });
+    });
+
+    $('gate-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      submitGate();
+    });
+
+    $('btn-passcode-save').addEventListener('click', function () {
+      var value = $('in-passcode').value.trim();
+      if (!value) { toast('新しい合言葉を入力してください', true); return; }
+      savePasscode(value);
+    });
+    $('btn-passcode-clear').addEventListener('click', function () {
+      if (!window.confirm('合言葉を解除します。URLを知っている人は誰でもアクセスできるようになります。よろしいですか？')) return;
+      savePasscode('');
     });
 
     $('btn-rule-new').addEventListener('click', function () { openRuleEditor(null); });
@@ -753,9 +863,10 @@
     });
   }
 
-  function init() {
+  /** Loads the app itself. Runs once the passcode gate is satisfied. */
+  function bootstrap() {
     busy(true);
-    call('apiBootstrap').then(function (data) {
+    return call('apiBootstrap').then(function (data) {
       state.players = data.players;
       state.rules = data.rules;
       state.today = data.today;
@@ -772,10 +883,32 @@
 
       renderSeats([]);
       renderDay(data.daySummary);
+      renderPasscodeState(data.passcodeRequired);
       if (!state.players.length) toast('まずプレイヤーを追加してください');
     }).catch(function (error) {
-      toast(errorMessage(error), true);
+      handleError(error);
     }).then(function () { busy(false); });
+  }
+
+  function init() {
+    try {
+      state.passcode = window.localStorage.getItem(PASSCODE_STORAGE_KEY) || '';
+    } catch (error) {
+      state.passcode = '';
+    }
+
+    busy(true);
+    callPublic('apiAuthStatus').then(function (status) {
+      if (status.required && !state.passcode) {
+        busy(false);
+        showGate();
+        return null;
+      }
+      return bootstrap();
+    }).catch(function (error) {
+      busy(false);
+      toast(errorMessage(error), true);
+    });
   }
 
   bindEvents();

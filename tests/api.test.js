@@ -435,3 +435,75 @@ test('a game scored with a since-deactivated rule still reads back correctly', (
   assert.deepEqual(game.rule.uma, [20, 10, -10, -20]);
   assert.equal(app.call('apiGetDaySummary', '2026-08-24').gameCount, 1);
 });
+
+// -------------------------------------------------------------- passcode gate
+
+test('with no passcode set the app is open', () => {
+  const { app } = freshApp();
+  assert.deepEqual(app.call('apiAuthStatus'), { required: false });
+  assert.equal(app.call('apiBootstrap').passcodeRequired, false);
+  assert.deepEqual(app.call('apiVerifyPasscode', 'anything'), { ok: true, required: false });
+});
+
+test('setting a passcode closes every guarded endpoint', () => {
+  const { app, players } = freshApp();
+  app.call('apiSetPasscode', 'kazoku2026');
+
+  assert.equal(app.call('apiAuthStatus').required, true);
+  assert.throws(() => app.call('apiBootstrap'), /AUTH_REQUIRED/);
+  assert.throws(() => app.call('apiBootstrap', 'wrong'), /AUTH_REQUIRED/);
+  assert.throws(() => app.call('apiGetHistory', {}), /AUTH_REQUIRED/);
+  assert.throws(() => app.call('apiGetStats', {}), /AUTH_REQUIRED/);
+  assert.throws(() => app.call('apiListRules', true), /AUTH_REQUIRED/);
+  assert.throws(() => app.call('apiAddPlayer', '祖父'), /AUTH_REQUIRED/);
+  assert.throws(
+    () => app.call('apiSubmitGame', gamePayload(players, [45200, 28700, 17800, 8300])),
+    /AUTH_REQUIRED/);
+
+  // The right passcode gets straight back in.
+  assert.equal(app.call('apiBootstrap', 'kazoku2026').passcodeRequired, true);
+  assert.equal(
+    app.call('apiSubmitGame', gamePayload(players, [45200, 28700, 17800, 8300]), 'kazoku2026')
+      .results.length,
+    4);
+});
+
+test('the passcode check stays open so the login screen can use it', () => {
+  const { app } = freshApp();
+  app.call('apiSetPasscode', 'kazoku2026');
+
+  assert.deepEqual(app.call('apiAuthStatus'), { required: true });
+  assert.deepEqual(app.call('apiVerifyPasscode', 'kazoku2026'), { ok: true, required: true });
+  assert.deepEqual(app.call('apiVerifyPasscode', 'nope'), { ok: false, required: true });
+});
+
+test('changing the passcode needs the current one', () => {
+  const { app } = freshApp();
+  app.call('apiSetPasscode', 'kazoku2026');
+
+  assert.throws(() => app.call('apiSetPasscode', 'atarashii', 'wrong'), /AUTH_REQUIRED/);
+  app.call('apiSetPasscode', 'atarashii', 'kazoku2026');
+  assert.deepEqual(app.call('apiVerifyPasscode', 'atarashii'), { ok: true, required: true });
+});
+
+test('clearing the passcode reopens the app', () => {
+  const { app } = freshApp();
+  app.call('apiSetPasscode', 'kazoku2026');
+  app.call('apiSetPasscode', '', 'kazoku2026');
+
+  assert.equal(app.call('apiAuthStatus').required, false);
+  assert.equal(app.call('apiBootstrap').passcodeRequired, false);
+});
+
+test('a too short passcode is rejected', () => {
+  const { app } = freshApp();
+  assert.throws(() => app.call('apiSetPasscode', 'abc'), /4文字以上/);
+  assert.throws(() => app.call('apiSetPasscode', 'x'.repeat(61)), /60文字以内/);
+  assert.equal(app.call('apiAuthStatus').required, false);
+});
+
+test('a passcode of only spaces is treated as clearing it', () => {
+  const { app } = freshApp();
+  app.call('apiSetPasscode', '    ');
+  assert.equal(app.call('apiAuthStatus').required, false);
+});

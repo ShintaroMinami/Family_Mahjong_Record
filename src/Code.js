@@ -83,8 +83,10 @@ function setup() {
 
 /**
  * Returns the data spreadsheet URL, for the admin link in the UI.
+ * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  * @returns {string}
  */
-function apiGetSpreadsheetUrl() {
+function apiGetSpreadsheetUrl(passcode) {
+  requirePasscode_(passcode);
   return getSpreadsheet_().getUrl();
 }
