@@ -222,3 +222,4 @@ __marimo__/
 .clasprc.json
 dev/data/
 node_modules/
+.clasp-deployment.json

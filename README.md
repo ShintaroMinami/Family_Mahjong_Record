@@ -32,6 +32,7 @@ src/          Apps Script にデプロイされるコード
   Stats.js      集計（純粋関数）
   Store.js      スプレッドシートへの読み書き
   Repo.js       ドメイン単位のCRUD
+  Auth.js       合言葉の検証
   Api.js        ブラウザから google.script.run で呼ぶ関数
   index.html / css.html / js.html   画面
 dev/          ローカル開発用（デプロイされない）
@@ -39,7 +40,9 @@ dev/          ローカル開発用（デプロイされない）
   app-context.js   src/*.js をNodeに読み込む
   LocalStore.js    Store.js のローカル版（JSONファイル）
   server.js        HTTP層
-  e2e-script.js    ブラウザ内E2Eシナリオ
+  deploy.js        push とデプロイ更新をまとめて実行
+  e2e-script.js       ブラウザ内E2Eシナリオ
+  e2e-gate-script.js  合言葉画面のE2Eシナリオ
 tests/        テスト
 ```
 
@@ -102,6 +105,35 @@ npx clasp push
 
 `.clasp.json` は Git 管理外。`.clasp.json.example` を参考に作成するか、
 `clasp create` が生成したものをそのまま使う。
+
+## 更新するとき
+
+```bash
+npm run deploy                # テスト → push → デプロイ更新
+npm run deploy -- "変更内容"   # 説明を付ける場合
+```
+
+URLは変わらない。
+
+> **重要**: `clasp push` だけではコードは公開されない。Web App は作成時の
+> **バージョンに固定**されており、push はプロジェクトにコードを保存するだけなので、
+> デプロイを更新しない限り古いコードが動き続ける。症状が「変更が反映されない」
+> としか見えず原因を見失いやすいため、この2つは必ずセットで実行すること。
+
+初回実行時に、更新対象のデプロイIDが `.clasp-deployment.json` に記録される
+（Git管理外。**デプロイIDは公開URLそのもの**なので、コミットしてはいけない）。
+デプロイが複数ある場合は候補が表示されるので、更新したいものを同ファイルに
+`{"deploymentId": "..."}` の形で書く。
+
+エディタから手動でやる場合は **デプロイ → デプロイを管理 → 鉛筆アイコン →
+バージョン「新バージョン」→ デプロイ**。「新しいデプロイ」を選ぶと別URLが
+発行されるので注意。
+
+### 反映されないと感じたら
+
+Web App は `googleusercontent.com` の iframe 経由で配信されるため、ブラウザに
+古いHTMLが残ることがある。まず**強制リロード**（Mac: `Cmd + Shift + R`）を試す。
+それでも変わらなければ、デプロイのバージョンが古い可能性が高い。
 
 ## 合言葉の設定
 
