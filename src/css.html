@@ -1,5 +1,8 @@
 <style>
-  :root {
+  /* Green is both the fallback and a selectable palette, so it answers to the
+     bare :root and to its own [data-accent] value. */
+  :root,
+  :root[data-accent="midori"] {
     --bg: #f4f6f5;
     --surface: #ffffff;
     --surface-alt: #eef2f0;
@@ -16,8 +19,21 @@
     --tabbar-height: 60px;
   }
 
+  /* ---- accent themes ----
+     --accent does double duty: a background carrying #fff text (header, primary
+     button) and a foreground on light surfaces (active tab, seat badge). Every
+     option below has to stay legible in both roles, which is why the light set
+     is dark and the dark set is light. Green is the default and is defined in
+     :root above. */
+  :root[data-accent="ai"]       { --accent: #1d5b96; --accent-weak: #e2ecf7; }
+  :root[data-accent="enji"]     { --accent: #a3324a; --accent-weak: #f8e4e9; }
+  :root[data-accent="murasaki"] { --accent: #6a4a9c; --accent-weak: #ece5f6; }
+  :root[data-accent="daidai"]   { --accent: #b05e18; --accent-weak: #fbeadb; }
+  :root[data-accent="sumi"]     { --accent: #3f4a52; --accent-weak: #e7ebee; }
+
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root,
+    :root[data-accent="midori"] {
       --bg: #14181a;
       --surface: #1e2427;
       --surface-alt: #262d31;
@@ -31,6 +47,12 @@
       --warn-bg: #3a2f1a;
       --warn-border: #8a6a2e;
     }
+
+    :root[data-accent="ai"]       { --accent: #63a8e6; --accent-weak: #17293c; }
+    :root[data-accent="enji"]     { --accent: #e8899b; --accent-weak: #3a1f27; }
+    :root[data-accent="murasaki"] { --accent: #a98ee0; --accent-weak: #2a2040; }
+    :root[data-accent="daidai"]   { --accent: #e5a05f; --accent-weak: #3a2a17; }
+    :root[data-accent="sumi"]     { --accent: #9aabb5; --accent-weak: #242d33; }
   }
 
   * { box-sizing: border-box; }
@@ -255,6 +277,32 @@
     color: var(--accent);
     font-weight: 600;
   }
+  .accent-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .accent-grid button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    border: 1px solid rgba(0, 0, 0, .15);
+  }
+  .swatch-midori   { background: #1f7a4d; }
+  .swatch-ai       { background: #1d5b96; }
+  .swatch-enji     { background: #a3324a; }
+  .swatch-murasaki { background: #6a4a9c; }
+  .swatch-daidai   { background: #b05e18; }
+  .swatch-sumi     { background: #3f4a52; }
+
+  @media (prefers-color-scheme: dark) {
+    .swatch { border-color: rgba(255, 255, 255, .2); }
+    .swatch-midori   { background: #4bbd84; }
+    .swatch-ai       { background: #63a8e6; }
+    .swatch-enji     { background: #e8899b; }
+    .swatch-murasaki { background: #a98ee0; }
+    .swatch-daidai   { background: #e5a05f; }
+    .swatch-sumi     { background: #9aabb5; }
+  }
+
   .uma-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .uma-grid > div { min-width: 0; }
   .uma-grid label { text-align: center; }

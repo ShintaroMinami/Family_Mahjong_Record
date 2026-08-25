@@ -1,9 +1,20 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-accent="<?= DEFAULT_ACCENT ?>">
 <head>
   <meta charset="utf-8">
   <base target="_top">
   <?!= include('css'); ?>
+  <script>
+    // The <html> tag already carries the author's default from Config.js. This
+    // runs before the first paint so that someone who picked their own colour
+    // never sees the default flash up first.
+    try {
+      var savedAccent = window.localStorage.getItem('mahjongAccent');
+      if (savedAccent) document.documentElement.setAttribute('data-accent', savedAccent);
+    } catch (error) {
+      // Private browsing can refuse localStorage; the default stands.
+    }
+  </script>
 </head>
 <body>
   <div id="gate">
@@ -157,6 +168,12 @@
           変更すると、他の端末では再入力が必要になります。
           パスワードなしでは使えません（解除するにはGASエディタでの操作が必要です）。
         </p>
+      </div>
+
+      <div class="card">
+        <h2>配色</h2>
+        <p class="hint">この端末だけの設定です。明暗はOSの設定に従います。</p>
+        <div class="accent-grid" id="accent-choice"></div>
       </div>
 
       <div class="card" id="rule-editor" style="display:none">

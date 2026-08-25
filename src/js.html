@@ -24,6 +24,18 @@
   };
 
   var PASSCODE_STORAGE_KEY = 'mahjongPasscode';
+  var ACCENT_STORAGE_KEY = 'mahjongAccent';
+
+  // Ids match the [data-accent] selectors in css.html; 'midori' is the default
+  // and carries no attribute, so :root alone styles it.
+  var ACCENTS = [
+    { id: 'midori', label: '緑' },
+    { id: 'ai', label: '藍' },
+    { id: 'enji', label: '臙脂' },
+    { id: 'murasaki', label: '紫' },
+    { id: 'daidai', label: '橙' },
+    { id: 'sumi', label: '墨' }
+  ];
 
   // ---------------------------------------------------------------- helpers
 
@@ -709,6 +721,51 @@
     }).then(function () { busy(false); });
   }
 
+  // ------------------------------------------------------------------ accent
+
+  /**
+   * The accent in effect for someone who has never chosen one.
+   *
+   * index.html stamps Config.js's DEFAULT_ACCENT onto <html>, and the inline
+   * script there has already replaced it with the stored choice if there is
+   * one. Reading it back beats hard-coding a second copy of the default here.
+   *
+   * @returns {string}
+   */
+  function currentAccent() {
+    return document.documentElement.getAttribute('data-accent') || 'midori';
+  }
+
+  /** @returns {string} The accent this browser is set to. */
+  function storedAccent() {
+    try {
+      return window.localStorage.getItem(ACCENT_STORAGE_KEY) || currentAccent();
+    } catch (error) {
+      return currentAccent();
+    }
+  }
+
+  function applyAccent(id) {
+    document.documentElement.setAttribute('data-accent', id);
+    try {
+      window.localStorage.setItem(ACCENT_STORAGE_KEY, id);
+    } catch (error) {
+      // Private browsing: the choice lasts for this tab only.
+    }
+    renderAccentChoice();
+  }
+
+  function renderAccentChoice() {
+    var current = storedAccent();
+    $('accent-choice').innerHTML = ACCENTS.map(function (accent) {
+      return '<button type="button" class="choice' +
+        (accent.id === current ? ' active' : '') +
+        '" data-accent-id="' + escapeHtml(accent.id) + '">' +
+        '<span class="swatch swatch-' + escapeHtml(accent.id) + '"></span>' +
+        escapeHtml(accent.label) + '</button>';
+    }).join('');
+  }
+
   // ---------------------------------------------------------------- passcode
 
   function showGate(message) {
@@ -831,6 +888,11 @@
       submitGate();
     });
 
+    $('accent-choice').addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-accent-id]');
+      if (button) applyAccent(button.getAttribute('data-accent-id'));
+    });
+
     $('btn-passcode-save').addEventListener('click', function () {
       var value = $('in-passcode').value.trim();
       if (!value) { toast('新しいパスワードを入力してください', true); return; }
@@ -913,6 +975,7 @@
   }
 
   bindEvents();
+  renderAccentChoice();
   init();
 })();
 </script>

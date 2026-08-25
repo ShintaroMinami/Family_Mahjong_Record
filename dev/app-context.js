@@ -184,13 +184,16 @@ function seedSampleData(app, options) {
  */
 function renderIndexHtml(extraHead) {
   const template = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
-  const { APP_TITLE } = loadPureFunctions(['Config.js'], ['APP_TITLE']);
+  const config = loadPureFunctions(['Config.js'], ['APP_TITLE', 'DEFAULT_ACCENT']);
   const resolved = template
     .replace(
       /<\?!?=?\s*include\(\s*'([\w-]+)'\s*\)\s*;?\s*\?>/g,
       (_match, name) => fs.readFileSync(path.join(SRC, `${name}.html`), 'utf8')
     )
-    .replace(/<\?!?=\s*APP_TITLE\s*;?\s*\?>/g, () => APP_TITLE);
+    // Any bare `<?= NAME ?>` is a Config.js constant; Apps Script substitutes
+    // these itself, so the local server has to do the same.
+    .replace(/<\?!?=\s*(\w+)\s*;?\s*\?>/g, (match, name) =>
+      (name in config ? String(config[name]) : match));
   // A replacement function, not a string: in a replacement string `$$` collapses
   // to `$`, which silently mangles injected JavaScript.
   return extraHead ? resolved.replace('</head>', () => `${extraHead}\n</head>`) : resolved;

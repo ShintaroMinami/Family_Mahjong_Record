@@ -345,7 +345,35 @@
       check('三麻ルールを選ぶと3席になる', $$('#seat-grid .seat-row').length === 3);
       check('三麻の素点合計の目標が105,000になる',
         textOf('#score-sum').indexOf('105,000') >= 0, textOf('#score-sum'));
+
+      // ---- accent themes ----
+      click($('[data-tab="settings"]'));
+      var before = headerColour();
+      click($('#accent-choice button[data-accent-id="enji"]'));
+      return waitFor('配色の反映', function () {
+        return headerColour() !== before;
+      }).then(function () { return before; });
+    }).then(function (before) {
+      check('配色を選ぶとヘッダーの色が変わる', headerColour() !== before,
+        before + ' → ' + headerColour());
+      check('選んだ配色が端末に記憶される',
+        window.localStorage.getItem('mahjongAccent') === 'enji');
+      check('選択中の配色に印が付く',
+        $('#accent-choice button[data-accent-id="enji"]').className.indexOf('active') >= 0);
+
+      var enji = headerColour();
+      click($('#accent-choice button[data-accent-id="midori"]'));
+      return waitFor('既定色へ戻す', function () { return headerColour() !== enji; });
+    }).then(function () {
+      check('既定色を選び直せる',
+        window.localStorage.getItem('mahjongAccent') === 'midori' &&
+        document.documentElement.getAttribute('data-accent') === 'midori');
     });
+  }
+
+  /** @returns {string} The header's computed background colour. */
+  function headerColour() {
+    return window.getComputedStyle($('header')).backgroundColor;
   }
 
   run().then(finish, function (error) {

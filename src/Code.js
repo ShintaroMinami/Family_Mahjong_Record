@@ -96,5 +96,7 @@ function setup() {
   Logger.log('2. タイトルは「' + APP_TITLE + '」です。');
   Logger.log('   変えるなら src/Config.js の APP_TITLE を編集して npm run deploy。');
   Logger.log('   タブ・画面見出し・このスプレッドシート名がまとめて変わります。');
+  Logger.log('3. 配色の既定は src/Config.js の DEFAULT_ACCENT で決まります。');
+  Logger.log('   使う人は設定タブで各自変更できます（端末ごとに記憶されます）。');
   return url;
 }

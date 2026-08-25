@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/domain.test.js tests/stats.test.js tests/store.test.js tests/api.test.js",
+    "test": "node --test tests/domain.test.js tests/stats.test.js tests/store.test.js tests/config.test.js tests/api.test.js",
     "typecheck": "tsc --noEmit",
     "push": "clasp push",
     "open": "clasp open",
