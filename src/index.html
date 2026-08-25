@@ -152,24 +152,6 @@
         <button id="btn-rule-new" style="width:100%;margin-top:10px">＋ 新しいルール</button>
       </div>
 
-      <div class="card" id="passcode-card">
-        <h2>パスワード</h2>
-        <p class="hint" id="passcode-state"></p>
-        <div class="field-row" style="margin-bottom:0">
-          <div>
-            <input type="password" id="in-passcode" autocomplete="new-password"
-                   maxlength="60" placeholder="新しいパスワード（6文字以上）">
-          </div>
-          <div style="flex:0 0 90px">
-            <button id="btn-passcode-save" style="width:100%">保存</button>
-          </div>
-        </div>
-        <p class="hint" style="margin:8px 0 0">
-          変更すると、他の端末では再入力が必要になります。
-          パスワードなしでは使えません（解除するにはGASエディタでの操作が必要です）。
-        </p>
-      </div>
-
       <div class="card">
         <h2>配色</h2>
         <p class="hint">この端末だけの設定です。明暗はOSの設定に従います。</p>
@@ -217,6 +199,24 @@
           <button class="primary" id="btn-rule-save" style="width:auto;flex:1">保存</button>
           <button id="btn-rule-cancel">キャンセル</button>
         </div>
+      </div>
+
+      <div class="card" id="passcode-card">
+        <h2>パスワード</h2>
+        <p class="hint" id="passcode-state"></p>
+        <div class="field-row" style="margin-bottom:0">
+          <div>
+            <input type="password" id="in-passcode" autocomplete="new-password"
+                   maxlength="60" placeholder="新しいパスワード（6文字以上）">
+          </div>
+          <div style="flex:0 0 90px">
+            <button id="btn-passcode-save" style="width:100%">保存</button>
+          </div>
+        </div>
+        <p class="hint" style="margin:8px 0 0">
+          変更すると、他の端末では再入力が必要になります。
+          パスワードなしでは使えません（解除するにはGASエディタでの操作が必要です）。
+        </p>
       </div>
     </section>
   </main>
