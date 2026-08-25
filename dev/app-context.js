@@ -17,7 +17,11 @@ const { randomUUID } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 
-/** Evaluation order. LocalStore.js is last so its definitions win over Store.js. */
+/**
+ * Evaluation order. src/Store.js is absent on purpose: LocalStore.js defines the
+ * same global functions against a JSON file, so nothing above the storage layer
+ * can tell the difference.
+ */
 const LOAD_ORDER = [
   path.join(SRC, 'Config.js'),
   path.join(SRC, 'Schema.js'),
