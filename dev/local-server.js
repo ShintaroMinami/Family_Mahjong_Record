@@ -32,7 +32,10 @@ if (hasFlag('--seed')) {
     : '既にデータがあるためシードをスキップしました');
 }
 
-createServer(app).listen(PORT, () => {
+// Bound to the loopback interface on purpose: the development database has no
+// passcode, so binding to 0.0.0.0 (Node's default) would hand every device on
+// the network read and write access to it.
+createServer(app).listen(PORT, '127.0.0.1', () => {
   console.log('\n  家族麻雀 スコア記録 (LOCAL)');
   console.log(`  → http://localhost:${PORT}`);
   console.log(`  DB : ${path.relative(ROOT, app.dbPath)}`);
