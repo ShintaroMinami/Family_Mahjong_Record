@@ -60,15 +60,43 @@
   function $(id) { return document.getElementById(id); }
 
   /**
+   * How long to wait for a server call before giving up on it.
+   *
+   * google.script.run can drop a call without calling either handler, and when
+   * that happens the loading overlay never clears and the app looks frozen.
+   * Failing loudly after a wait leaves the screen usable and says what
+   * happened. Well above any real call: the slowest here read a whole
+   * spreadsheet in a fraction of this.
+   */
+  var CALL_TIMEOUT_MS = 30000;
+
+  /**
    * Calls a server function that needs no passcode.
    * google.script.run is callback based, so wrap it once here.
    */
   function callPublic(name) {
     var args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        reject(new Error('サーバーから応答がありません（' + name +
+          '）。通信状況を確認して、もう一度お試しください。'));
+      }, CALL_TIMEOUT_MS);
+
+      var settle = function (fn) {
+        return function (value) {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          fn(value);
+        };
+      };
+
       google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(reject)
+        .withSuccessHandler(settle(resolve))
+        .withFailureHandler(settle(reject))
         [name].apply(null, args);
     });
   }
