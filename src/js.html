@@ -36,11 +36,10 @@
     { id: 'black', label: 'ブラック' }
   ];
 
-  // Ids match the [data-icons] selectors in css.html. Emoji is the fallback,
-  // so its icons are the ones the markup shows without any rule applying.
+  // Ids match the [data-icons] selectors in css.html.
   var ICON_STYLES = [
+    { id: 'line', label: 'アイコン' },
     { id: 'emoji', label: '絵文字' },
-    { id: 'line', label: '線画' },
     { id: 'text', label: '文字のみ' }
   ];
 
@@ -740,7 +739,10 @@
    * is why switching costs no re-render of the page.
    *
    * @param {{attribute: string, storageKey: string, containerId: string,
-   *          swatches?: boolean, options: {id: string, label: string}[]}} config
+   *          fallback: string, swatches?: boolean,
+   *          options: {id: string, label: string}[]}} config
+   *   fallback is what css.html renders when no rule matches the attribute, so
+   *   it stays put when the options are reordered.
    * @returns {void}
    */
   function appearanceSetting(config) {
@@ -754,7 +756,7 @@
       } catch (error) {
         // Private browsing refuses localStorage; the attribute still answers.
       }
-      return root.getAttribute(config.attribute) || config.options[0].id;
+      return root.getAttribute(config.attribute) || config.fallback;
     }
 
     function render() {
@@ -993,6 +995,7 @@
     attribute: 'data-accent',
     storageKey: 'mahjongAccent',
     containerId: 'accent-choice',
+    fallback: 'green',
     swatches: true,
     options: ACCENTS
   });
@@ -1000,6 +1003,7 @@
     attribute: 'data-icons',
     storageKey: 'mahjongIcons',
     containerId: 'icons-choice',
+    fallback: 'emoji',
     options: ICON_STYLES
   });
   init();

@@ -388,10 +388,10 @@
       check('絵文字にできる', matches('emoji'));
 
       click($('#icons-choice button[data-choice="line"]'));
-      return waitFor('線画へ切替', function () { return matches('line'); });
+      return waitFor('アイコンへ切替', function () { return matches('line'); });
     }).then(function () {
-      check('線画にすると絵文字と入れ替わる', matches('line'));
-      check('線画の選択が端末に記憶される',
+      check('アイコンにすると絵文字と入れ替わる', matches('line'));
+      check('アイコンの選択が端末に記憶される',
         window.localStorage.getItem('mahjongIcons') === 'line');
 
       click($('#icons-choice button[data-choice="text"]'));
