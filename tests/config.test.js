@@ -150,3 +150,18 @@ test('all six palettes are covered in both colour schemes', () => {
     assert.deepEqual(Object.keys(accent).sort(), [...paletteIds()].sort(), scheme);
   });
 });
+
+// --- chart metrics ----------------------------------------------------------
+//
+// Stats.js decides which series exist and js.html decides which are offered.
+// A metric in one and not the other is silent: the button renders and the chart
+// comes up empty, or a computed series is never reachable.
+
+
+test('the chart offers exactly the metrics Stats.js builds', () => {
+  const metrics = read('Stats.js').match(/var SERIES_METRICS = \[([^\]]*)\]/);
+  assert.ok(metrics, 'SERIES_METRICS should be a single array literal');
+  const built = metrics[1].split(',').map((name) => name.trim().replace(/'/g, ''));
+
+  assert.deepEqual([...listedIds('CHART_METRICS')].sort(), built.sort());
+});

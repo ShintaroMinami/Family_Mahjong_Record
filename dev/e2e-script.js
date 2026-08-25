@@ -273,6 +273,10 @@
       return waitFor('統計の読み込み', function () { return $('#stats-body table'); });
     }).then(function () {
       check('統計テーブルが描画される', $$('#stats-body table tbody tr').length > 0);
+      check('既定は4人の集計', /4人/.test(textOf('#stats-body h2')), textOf('#stats-body h2'));
+      check('人数の切り替えが出ている',
+        $$('#stats-player-count button').length === 2,
+        $$('#stats-player-count button').map(function (b) { return b.textContent; }).join(' '));
       var statsPair = sameHeight('#stats-from', '#stats-to');
       check('統計: 開始と終了の高さが揃う', statsPair.ok, statsPair.detail);
       checkNoOverflow('統計');
@@ -280,25 +284,45 @@
         $$('#stats-body svg polyline').length);
       check('凡例が出る', $$('#stats-body .legend span').length > 0);
 
+      // --- three- vs four-handed --------------------------------------------
+      click($('#stats-player-count button[data-count="3"]'));
+      return waitFor('三麻へ切替', function () {
+        return /3人/.test(textOf('#stats-body h2')) || $('#stats-body .empty');
+      }).then(function () {
+        // The sample games are all four-handed, so the three-handed view has
+        // nothing in it -- which is the point: it is not showing them anyway.
+        check('三麻に切り替えると四麻の対局は出ない',
+          $$('#stats-body table tbody tr').length === 0 || /3人/.test(textOf('#stats-body h2')),
+          textOf('#stats-body h2'));
+        click($('#stats-player-count button[data-count="4"]'));
+        return waitFor('四麻へ戻す', function () {
+          return $$('#stats-body table tbody tr').length > 0;
+        });
+      }).then(function () {
+        check('四麻に戻せる', /4人/.test(textOf('#stats-body h2')), textOf('#stats-body h2'));
+      }).then(function () {
+
       // --- switching what the chart plots ------------------------------------
-      check('既定のグラフは累積収支', chartTitle().indexOf('累積収支') === 0, chartTitle());
+      check('グラフの見出しは指標によらず一定', chartTitle() === '成績の推移', chartTitle());
+      check('既定のグラフは合計', activeMetric() === 'totalPt', activeMetric());
       check('0の基準線が引かれる', $$('#stats-body svg line').length === 1);
+      check('チップは選べない', !$('#stats-body button[data-metric="chips"]'));
       var byTotalPoints = polylinePoints();
 
       click($('#stats-body button[data-metric="avgRank"]'));
-      check('平順のグラフに切り替わる', chartTitle().indexOf('平均着順') === 0, chartTitle());
+      check('平順のグラフに切り替わる', activeMetric() === 'avgRank', activeMetric());
       check('線の形が変わる', polylinePoints() !== byTotalPoints);
       check('平順では0の基準線を引かない', $$('#stats-body svg line').length === 0);
       check('平順は上が良い順位になる', axisLabels()[0] < axisLabels()[1],
         axisLabels().join(' / '));
 
-      click($('#stats-body button[data-metric="chips"]'));
-      check('チップのグラフに切り替わる', chartTitle().indexOf('チップ') === 0, chartTitle());
+      click($('#stats-body button[data-metric="avgPt"]'));
+      check('平均のグラフに切り替わる', activeMetric() === 'avgPt', activeMetric());
 
       click($('#stats-body button[data-metric="totalPt"]'));
-      check('累積収支に戻せる', polylinePoints() === byTotalPoints, chartTitle());
-      check('選択中のグラフに印が付く',
-        $('#stats-body button[data-metric="totalPt"]').className.indexOf('active') >= 0);
+      check('合計に戻せる', polylinePoints() === byTotalPoints, activeMetric());
+      });
+
 
       // --- sorting the statistics tables ------------------------------------
       check('通算成績の既定は合計の降順', sortedOn('合計') === '▼', sortedOn('合計'));
@@ -473,6 +497,12 @@
   }
 
   // --- statistics chart helpers ---
+
+  /** @returns {string} The metric the chart is currently plotting. */
+  function activeMetric() {
+    var button = $('#stats-body button[data-metric].active');
+    return button ? button.getAttribute('data-metric') : '';
+  }
 
   /** @returns {string} The chart card's heading. */
   function chartTitle() {

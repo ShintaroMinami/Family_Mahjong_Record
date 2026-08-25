@@ -92,17 +92,17 @@ function aggregatePlayerStats(results, playerCountByGame) {
 }
 
 /** Metrics the statistics chart can plot, in the order they are offered. */
-var SERIES_METRICS = ['totalPt', 'avgPt', 'avgRank', 'chips'];
+var SERIES_METRICS = ['totalPt', 'avgPt', 'avgRank'];
 
 /**
- * Builds one line per player per metric, ordered by game.
+ * Builds one line per metric per player, ordered by game.
  *
  * Used by the chart on the statistics tab. A player who sat a game out keeps
  * the value they had, so their line stays flat rather than dropping out.
  *
- * Totals and chips read 0 before a player's first game, which is true of them:
- * everyone starts at zero. The averages read null instead -- an average rank of
- * 0 is not a thing, and plotting it would drag the axis somewhere meaningless.
+ * The total reads 0 before a player's first game, which is true of it: everyone
+ * starts at zero. The averages read null instead -- an average rank of 0 is not
+ * a thing, and plotting it would drag the axis somewhere meaningless.
  *
  * @param {Record<string, any>[]} results Result rows.
  * @param {string[]} gameIdsInOrder Game ids, oldest first.
@@ -126,7 +126,6 @@ function buildSeries(results, gameIdsInOrder) {
 
   Object.keys(playerIds).forEach(function (playerId) {
     var totalPt = 0;
-    var chips = 0;
     var rankSum = 0;
     var games = 0;
     SERIES_METRICS.forEach(function (metric) { series[metric][playerId] = []; });
@@ -136,11 +135,9 @@ function buildSeries(results, gameIdsInOrder) {
       if (row) {
         games++;
         totalPt = round(totalPt + row.totalPt, 1);
-        chips += row.chips;
         rankSum += row.rank;
       }
       series.totalPt[playerId].push(totalPt);
-      series.chips[playerId].push(chips);
       series.avgPt[playerId].push(games ? round(totalPt / games, 2) : null);
       series.avgRank[playerId].push(games ? round(rankSum / games, 2) : null);
     });

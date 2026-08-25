@@ -193,7 +193,8 @@ function repoNextGameId(gameDate, existingGames) {
 
 /**
  * Lists games, newest first.
- * @param {{from?: string, to?: string, includeDeleted?: boolean}} [options]
+ * @param {{from?: string, to?: string, playerCount?: number,
+ *   includeDeleted?: boolean}} [options]
  * @returns {GameRecord[]}
  */
 function repoListGames(options) {
@@ -204,6 +205,7 @@ function repoListGames(options) {
       if (!opts.includeDeleted && game.deleted) return false;
       if (opts.from && game.gameDate < opts.from) return false;
       if (opts.to && game.gameDate > opts.to) return false;
+      if (opts.playerCount && game.playerCount !== opts.playerCount) return false;
       return true;
     })
     .sort(function (a, b) {

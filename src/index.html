@@ -131,7 +131,15 @@
     <!-- ===== 統計 ===== -->
     <section id="panel-stats" class="panel">
       <div class="card">
-        <h2>集計期間</h2>
+        <h2>集計対象</h2>
+        <div class="btn-row" style="margin-bottom:12px" id="stats-player-count">
+          <button type="button" data-count="4" class="choice active">4人（四麻）</button>
+          <button type="button" data-count="3" class="choice">3人（三麻）</button>
+        </div>
+        <p class="hint" style="margin:-6px 0 12px">
+          ウマ・オカ・順位の幅が違うため、四麻と三麻は分けて集計します。
+        </p>
+        <label>集計期間</label>
         <div class="field-row" style="margin-bottom:0">
           <div><label for="stats-from">開始</label><input type="date" id="stats-from"></div>
           <div><label for="stats-to">終了</label><input type="date" id="stats-to"></div>

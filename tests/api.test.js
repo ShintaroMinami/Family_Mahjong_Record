@@ -214,6 +214,40 @@ test('history honours its limit while reporting the full count', () => {
   assert.equal(page.games.length, 2);
 });
 
+test('statistics cover one table size at a time', () => {
+  const { app, players } = freshApp();
+  const three = app.call('apiSaveRule', {
+    name: 'テスト三麻', playerCount: 3, startPoints: 35000, returnPoints: 40000,
+    uma: [20, 0, -20], tobiBonus: 10
+  });
+
+  app.call('apiSubmitGame', gamePayload(players, [45200, 28700, 17800, 8300]));
+  app.call('apiSubmitGame', {
+    gameDate: '2026-08-24',
+    ruleId: three.ruleId,
+    entries: players.slice(0, 3).map((player, seat) => ({
+      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat], chips: 0
+    }))
+  });
+
+  // Mixing the two would average an uma of 20/10/-10/-20 with one of 20/0/-20
+  // and a placing that tops out at 3 with one that tops out at 4.
+  const four = app.call('apiGetStats', {});
+  assert.equal(four.playerCount, 4);
+  assert.equal(four.gameCount, 1);
+  assert.equal(four.players.length, 4);
+
+  const threeHanded = app.call('apiGetStats', { playerCount: 3 });
+  assert.equal(threeHanded.playerCount, 3);
+  assert.equal(threeHanded.gameCount, 1);
+  assert.equal(threeHanded.players.length, 3);
+
+  // Anything but 3 means four-handed, so a missing or odd value cannot quietly
+  // produce a mixed aggregate.
+  assert.equal(app.call('apiGetStats', { playerCount: 0 }).playerCount, 4);
+  assert.equal(app.call('apiGetStats', { playerCount: 5 }).playerCount, 4);
+});
+
 test('statistics stay zero-sum and expose a cumulative series', () => {
   const { app } = freshApp();
   const inserted = seedSampleData(app, { today: new Date('2026-08-24T12:00:00Z') });
@@ -222,9 +256,11 @@ test('statistics stay zero-sum and expose a cumulative series', () => {
   const stats = app.call('apiGetStats', { withSeries: true });
   assert.equal(stats.gameCount, 6);
   assert.equal(stats.players.length, 4);
-  assert.equal(Math.round(stats.players.reduce((sum, p) => sum + p.totalPt, 0) * 100) / 100, 0);
+  // Math.abs, because a float sum that lands on zero can land on -0, and
+  // strict equality separates the two for no reason that matters here.
+  assert.ok(Math.abs(stats.players.reduce((sum, p) => sum + p.totalPt, 0)) < 0.005);
   assert.equal(stats.seriesLabels.length, 6);
-  assert.deepEqual(Object.keys(stats.series).sort(), ['avgPt', 'avgRank', 'chips', 'totalPt']);
+  assert.deepEqual(Object.keys(stats.series).sort(), ['avgPt', 'avgRank', 'totalPt']);
   Object.values(stats.series).forEach((metric) =>
     Object.values(metric).forEach((line) => assert.equal(line.length, 6)));
 
@@ -238,7 +274,6 @@ test('statistics stay zero-sum and expose a cumulative series', () => {
     assert.equal(last('totalPt'), player.totalPt);
     assert.equal(last('avgPt'), player.avgPt);
     assert.equal(last('avgRank'), player.avgRank);
-    assert.equal(last('chips'), player.chips);
   });
 });
 

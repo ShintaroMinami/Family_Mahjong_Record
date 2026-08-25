@@ -435,17 +435,21 @@ function apiGetHistory(options, passcode) {
 }
 
 /**
- * Returns aggregated statistics for a period.
- * @param {{from?: string, to?: string, withSeries?: boolean}} [options]
- * @returns {Record<string, any>}
+ * Returns aggregated statistics for a period and table size.
+ * @param {{from?: string, to?: string, playerCount?: number,
+ *   withSeries?: boolean}} [options] playerCount defaults to 4.
  * @param {string} [passcode] パスワード。設定されている場合のみ必要。
+ * @returns {Record<string, any>}
  */
 function apiGetStats(options, passcode) {
   requirePasscode_(passcode);
   var opts = options || {};
   var from = normalizeDateKey(opts.from || '') || undefined;
   var to = normalizeDateKey(opts.to || '') || undefined;
-  var games = repoListGames({ from: from, to: to });
+  // Three- and four-handed games are not comparable: the uma, the oka and the
+  // range a placing can take all differ, so an average over both means nothing.
+  var playerCount = normalizeNumber(opts.playerCount) === 3 ? 3 : 4;
+  var games = repoListGames({ from: from, to: to, playerCount: playerCount });
   var results = repoListResults({ gameIds: games.map(function (g) { return g.gameId; }) });
   var nameMap = buildPlayerNameMap_();
 
@@ -457,6 +461,7 @@ function apiGetStats(options, passcode) {
   var response = {
     from: from || '',
     to: to || '',
+    playerCount: playerCount,
     gameCount: games.length,
     players: withNames_(aggregatePlayerStats(results, playerCountByGame), nameMap)
   };

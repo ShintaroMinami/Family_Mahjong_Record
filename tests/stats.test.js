@@ -124,17 +124,3 @@ test('running averages start at a player\'s first game, not at zero', () => {
   assert.deepEqual(series.avgRank.P1, [1, 1.5]);
   assert.deepEqual(series.avgRank.P2, [2, 2]); // sat out G2, average unchanged
 });
-
-test('chips accumulate alongside points', () => {
-  const results = [
-    row('G1', 'P1', 1, 10, { chips: 3 }),
-    row('G1', 'P2', 2, -10, { chips: -3 }),
-    row('G2', 'P1', 2, -5, { chips: -1 }),
-    row('G2', 'P3', 1, 5, { chips: 1 })
-  ];
-  const series = buildSeries(results, ['G1', 'G2']).chips;
-
-  assert.deepEqual(series.P1, [3, 2]);
-  assert.deepEqual(series.P2, [-3, -3]);
-  assert.deepEqual(series.P3, [0, 1]);
-});

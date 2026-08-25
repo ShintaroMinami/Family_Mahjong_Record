@@ -27,6 +27,7 @@
     statsSort: { key: 'totalPt', dir: -1 },
     detailSort: { key: 'top2Rate', dir: -1 },
     chartMetric: 'totalPt',
+    statsPlayerCount: 4,
     // The shared passcode, remembered per browser. Empty when the gate is off.
     passcode: ''
   };
@@ -429,11 +430,11 @@
    * chart reads correctly -- 1st place belongs above 4th.
    */
   var CHART_METRICS = [
-    { id: 'totalPt', label: '合計', title: '累積収支の推移', decimals: 1, baseline: true },
-    { id: 'avgPt', label: '平均', title: '平均収支の推移', decimals: 1, baseline: true },
-    { id: 'avgRank', label: '平順', title: '平均着順の推移', decimals: 2, invert: true },
-    { id: 'chips', label: 'チップ', title: 'チップ収支の推移', decimals: 0, baseline: true }
+    { id: 'totalPt', label: '合計', decimals: 1, baseline: true },
+    { id: 'avgPt', label: '平均', decimals: 1, baseline: true },
+    { id: 'avgRank', label: '平順', decimals: 2, invert: true }
   ];
+
 
   function chartMetric() {
     return CHART_METRICS.filter(function (metric) {
@@ -506,7 +507,9 @@
           '" data-metric="' + option.id + '">' + option.label + '</button>';
       }).join('') + '</div>';
 
-    return '<div class="card"><h2>' + metric.title + '</h2>' + picker + svg +
+    // One heading for every metric: the buttons underneath say which is showing,
+    // and a title that changed with them just repeated the active button.
+    return '<div class="card"><h2>成績の推移</h2>' + picker + svg +
       '<div class="legend">' + legend.join('') + '</div></div>';
   }
 
@@ -540,7 +543,8 @@
   function renderStats(stats) {
     var players = sortPlayers(stats.players, state.statsSort);
     var period = (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
-    var html = '<div class="card"><h2>' + escapeHtml(period) + '（' + stats.gameCount + '半荘）</h2>' +
+    var html = '<div class="card"><h2>' + escapeHtml(period) + '（' +
+      stats.playerCount + '人 ' + stats.gameCount + '半荘）</h2>' +
       '<p class="hint">見出しをタップすると並べ替えられます。</p>' +
       playerTable(players, { sort: state.statsSort }) + '</div>';
     html += renderChart(stats);
@@ -826,7 +830,12 @@
 
   function loadStats() {
     busy(true);
-    return call('apiGetStats', { from: $('stats-from').value, to: $('stats-to').value, withSeries: true })
+    return call('apiGetStats', {
+      from: $('stats-from').value,
+      to: $('stats-to').value,
+      playerCount: state.statsPlayerCount,
+      withSeries: true
+    })
       .then(function (stats) { state.stats = stats; renderStats(stats); })
       .catch(function (error) { handleError(error); })
       .then(function () { busy(false); });
@@ -1075,9 +1084,9 @@
     $('stats-body').addEventListener('click', function (event) {
       if (!state.stats) return;
 
-      var metric = event.target.closest('button[data-metric]');
-      if (metric) {
-        state.chartMetric = metric.getAttribute('data-metric');
+      var metricButton = event.target.closest('button[data-metric]');
+      if (metricButton) {
+        state.chartMetric = metricButton.getAttribute('data-metric');
         renderStats(state.stats);
         return;
       }
@@ -1090,6 +1099,16 @@
         ? { key: key, dir: -state[scope].dir }
         : { key: key, dir: defaultSortDir(key) };
       renderStats(state.stats);
+    });
+
+    $('stats-player-count').addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-count]');
+      if (!button) return;
+      state.statsPlayerCount = Number(button.getAttribute('data-count'));
+      Array.prototype.forEach.call($('stats-player-count').children, function (other) {
+        other.classList.toggle('active', other === button);
+      });
+      loadStats();
     });
 
     $('btn-stats-load').addEventListener('click', loadStats);
