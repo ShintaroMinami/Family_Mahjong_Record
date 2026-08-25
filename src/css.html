@@ -19,7 +19,7 @@
     --warn-bg: #fff4e0;
     --warn-border: #e8b568;
     --radius: 12px;
-    --tabbar-height: 60px;
+    --tabbar-height: 68px;
   }
 
   /* ---- accent themes ----
@@ -360,12 +360,36 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    font-size: 11px;
+    gap: 4px;
+    /* The base button padding would eat 28px of a 64px cell on a 320px screen,
+       which is where the labels start to clip. */
+    padding: 0 2px;
+    font-size: 12px;
     color: var(--muted);
   }
-  nav.tabbar button .icon { font-size: 18px; line-height: 1; }
+  nav.tabbar button .icon { font-size: 22px; line-height: 1; }
   nav.tabbar button.active { color: var(--accent); font-weight: 600; }
+
+  /* ---- tab icon styles ----
+     Both variants ship in the markup and are swapped with CSS rather than
+     rebuilt in JS, so the chosen style is already correct on the first paint.
+     Emoji is the fallback, so the line icons start hidden. */
+  nav.tabbar .icon-line {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  nav.tabbar .icon-line,
+  :root[data-icons="emoji"] nav.tabbar .icon-line  { display: none; }
+  :root[data-icons="emoji"] nav.tabbar .icon-emoji { display: block; }
+  :root[data-icons="line"]  nav.tabbar .icon-emoji { display: none; }
+  :root[data-icons="line"]  nav.tabbar .icon-line  { display: block; }
+  :root[data-icons="text"]  nav.tabbar .icon       { display: none; }
+  :root[data-icons="text"]  nav.tabbar button      { font-size: 16px; }
 
   /* ---- toast ---- */
   #toast {

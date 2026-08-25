@@ -24,7 +24,6 @@
   };
 
   var PASSCODE_STORAGE_KEY = 'mahjongPasscode';
-  var ACCENT_STORAGE_KEY = 'mahjongAccent';
 
   // Ids match the [data-accent] selectors in css.html. Green answers to both
   // that attribute and the bare :root, so it works as a choice and a fallback.
@@ -35,6 +34,14 @@
     { id: 'purple', label: 'パープル' },
     { id: 'orange', label: 'オレンジ' },
     { id: 'black', label: 'ブラック' }
+  ];
+
+  // Ids match the [data-icons] selectors in css.html. Emoji is the fallback,
+  // so its icons are the ones the markup shows without any rule applying.
+  var ICON_STYLES = [
+    { id: 'emoji', label: '絵文字' },
+    { id: 'line', label: '線画' },
+    { id: 'text', label: '文字のみ' }
   ];
 
   // ---------------------------------------------------------------- helpers
@@ -721,49 +728,61 @@
     }).then(function () { busy(false); });
   }
 
-  // ------------------------------------------------------------------ accent
+  // -------------------------------------------------------------- appearance
 
   /**
-   * The accent in effect for someone who has never chosen one.
+   * Wires up one look-and-feel choice: renders its buttons, remembers the pick
+   * for this browser, and drives it through an attribute on <html>.
    *
-   * index.html stamps Config.js's DEFAULT_ACCENT onto <html>, and the inline
-   * script there has already replaced it with the stored choice if there is
-   * one. Reading it back beats hard-coding a second copy of the default here.
+   * The attribute is the source of truth. index.html stamps Config.js's default
+   * onto it and its inline script has already swapped in the stored value, so
+   * nothing here needs a second copy of the default. CSS does the rest, which
+   * is why switching costs no re-render of the page.
    *
-   * @returns {string}
+   * @param {{attribute: string, storageKey: string, containerId: string,
+   *          swatches?: boolean, options: {id: string, label: string}[]}} config
+   * @returns {void}
    */
-  function currentAccent() {
-    return document.documentElement.getAttribute('data-accent') || 'green';
-  }
+  function appearanceSetting(config) {
+    var root = document.documentElement;
+    var container = $(config.containerId);
 
-  /** @returns {string} The accent this browser is set to. */
-  function storedAccent() {
-    try {
-      return window.localStorage.getItem(ACCENT_STORAGE_KEY) || currentAccent();
-    } catch (error) {
-      return currentAccent();
+    function selected() {
+      try {
+        var saved = window.localStorage.getItem(config.storageKey);
+        if (saved) return saved;
+      } catch (error) {
+        // Private browsing refuses localStorage; the attribute still answers.
+      }
+      return root.getAttribute(config.attribute) || config.options[0].id;
     }
-  }
 
-  function applyAccent(id) {
-    document.documentElement.setAttribute('data-accent', id);
-    try {
-      window.localStorage.setItem(ACCENT_STORAGE_KEY, id);
-    } catch (error) {
-      // Private browsing: the choice lasts for this tab only.
+    function render() {
+      var current = selected();
+      container.innerHTML = config.options.map(function (option) {
+        return '<button type="button" class="choice' +
+          (option.id === current ? ' active' : '') +
+          '" data-choice="' + escapeHtml(option.id) + '">' +
+          (config.swatches
+            ? '<span class="swatch swatch-' + escapeHtml(option.id) + '"></span>'
+            : '') +
+          escapeHtml(option.label) + '</button>';
+      }).join('');
     }
-    renderAccentChoice();
-  }
 
-  function renderAccentChoice() {
-    var current = storedAccent();
-    $('accent-choice').innerHTML = ACCENTS.map(function (accent) {
-      return '<button type="button" class="choice' +
-        (accent.id === current ? ' active' : '') +
-        '" data-accent-id="' + escapeHtml(accent.id) + '">' +
-        '<span class="swatch swatch-' + escapeHtml(accent.id) + '"></span>' +
-        escapeHtml(accent.label) + '</button>';
-    }).join('');
+    container.addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-choice]');
+      if (!button) return;
+      root.setAttribute(config.attribute, button.getAttribute('data-choice'));
+      try {
+        window.localStorage.setItem(config.storageKey, button.getAttribute('data-choice'));
+      } catch (error) {
+        // The choice lasts for this tab only.
+      }
+      render();
+    });
+
+    render();
   }
 
   // ---------------------------------------------------------------- passcode
@@ -888,11 +907,6 @@
       submitGate();
     });
 
-    $('accent-choice').addEventListener('click', function (event) {
-      var button = event.target.closest('button[data-accent-id]');
-      if (button) applyAccent(button.getAttribute('data-accent-id'));
-    });
-
     $('btn-passcode-save').addEventListener('click', function () {
       var value = $('in-passcode').value.trim();
       if (!value) { toast('新しいパスワードを入力してください', true); return; }
@@ -975,7 +989,19 @@
   }
 
   bindEvents();
-  renderAccentChoice();
+  appearanceSetting({
+    attribute: 'data-accent',
+    storageKey: 'mahjongAccent',
+    containerId: 'accent-choice',
+    swatches: true,
+    options: ACCENTS
+  });
+  appearanceSetting({
+    attribute: 'data-icons',
+    storageKey: 'mahjongIcons',
+    containerId: 'icons-choice',
+    options: ICON_STYLES
+  });
   init();
 })();
 </script>

@@ -25,3 +25,13 @@ var APP_TITLE = '家族麻雀 スコア記録';
  * mistype one.
  */
 var DEFAULT_ACCENT = 'green';
+
+/**
+ * The tab bar's icon style for people who have not picked one.
+ *
+ * One of: 'emoji' (絵文字) 'line' (線画アイコン) 'text' (文字のみ). Both icon
+ * sets are in the markup and CSS decides which one shows, so switching costs
+ * nothing at runtime. An unknown id leaves the emoji showing, since that is
+ * what the bare markup renders, and tests/config.test.js catches the typo.
+ */
+var DEFAULT_ICONS = 'line';

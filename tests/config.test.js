@@ -24,6 +24,34 @@ function offeredIds() {
   return new Set(Array.from(list[0].matchAll(/id: '(\w+)'/g), (m) => m[1]));
 }
 
+/** @param {string} attribute @returns {Set<string>} Ids css.html has a rule for. */
+function styledIds(attribute) {
+  const ids = new Set();
+  const pattern = new RegExp(`\\[${attribute}="(\\w+)"\\]`, 'g');
+  let match;
+  while ((match = pattern.exec(read('css.html')))) ids.add(match[1]);
+  return ids;
+}
+
+/** @param {string} name @returns {Set<string>} Ids the named js.html list offers. */
+function listedIds(name) {
+  const list = read('js.html').match(new RegExp(`var ${name} = \\[[\\s\\S]*?\\];`));
+  assert.ok(list, `${name} should be a single array literal in js.html`);
+  return new Set(Array.from(list[0].matchAll(/id: '(\w+)'/g), (m) => m[1]));
+}
+
+test('the default icon style names a style that exists', () => {
+  const { DEFAULT_ICONS } = loadPureFunctions(['Config.js'], ['DEFAULT_ICONS']);
+  assert.ok(
+    styledIds('data-icons').has(DEFAULT_ICONS),
+    `DEFAULT_ICONS '${DEFAULT_ICONS}' has no [data-icons] rule in css.html`
+  );
+});
+
+test('every offered icon style is styled, and every styled one is offered', () => {
+  assert.deepEqual([...listedIds('ICON_STYLES')].sort(), [...styledIds('data-icons')].sort());
+});
+
 test('the default accent names a palette that exists', () => {
   // A typo here would silently fall back to green, which is easy to miss when
   // green is what you were changing away from.

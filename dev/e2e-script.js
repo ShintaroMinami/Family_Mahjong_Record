@@ -349,7 +349,7 @@
       // ---- accent themes ----
       click($('[data-tab="settings"]'));
       var before = headerColour();
-      click($('#accent-choice button[data-accent-id="red"]'));
+      click($('#accent-choice button[data-choice="red"]'));
       return waitFor('配色の反映', function () {
         return headerColour() !== before;
       }).then(function () { return before; });
@@ -359,7 +359,7 @@
       check('選んだ配色が端末に記憶される',
         window.localStorage.getItem('mahjongAccent') === 'red');
       check('選択中の配色に印が付く',
-        $('#accent-choice button[data-accent-id="red"]').className.indexOf('active') >= 0);
+        $('#accent-choice button[data-choice="red"]').className.indexOf('active') >= 0);
 
       // The labels are four katakana wide in a three-column grid, which is the
       // tightest text in the app.
@@ -369,13 +369,76 @@
       check('配色ボタンのラベルが切れない', clipped.length === 0, clipped.join(', '));
 
       var red = headerColour();
-      click($('#accent-choice button[data-accent-id="green"]'));
+      click($('#accent-choice button[data-choice="green"]'));
       return waitFor('既定色へ戻す', function () { return headerColour() !== red; });
     }).then(function () {
       check('既定色を選び直せる',
         window.localStorage.getItem('mahjongAccent') === 'green' &&
         document.documentElement.getAttribute('data-accent') === 'green');
+
+      // ---- tab icon styles ----
+      // Written without assuming which style Config.js defaults to, so that
+      // changing DEFAULT_ICONS does not turn this red.
+      var initial = document.documentElement.getAttribute('data-icons');
+      check('既定のスタイルが最初の描画から効いている', matches(initial), initial);
+
+      click($('#icons-choice button[data-choice="emoji"]'));
+      return waitFor('絵文字へ切替', function () { return matches('emoji'); });
+    }).then(function () {
+      check('絵文字にできる', matches('emoji'));
+
+      click($('#icons-choice button[data-choice="line"]'));
+      return waitFor('線画へ切替', function () { return matches('line'); });
+    }).then(function () {
+      check('線画にすると絵文字と入れ替わる', matches('line'));
+      check('線画の選択が端末に記憶される',
+        window.localStorage.getItem('mahjongIcons') === 'line');
+
+      click($('#icons-choice button[data-choice="text"]'));
+      return waitFor('文字のみへ切替', function () { return matches('text'); });
+    }).then(function () {
+      check('文字のみにすると両方消える', matches('text'));
+
+      check('文字のみでもタブ名が切れない', clippedTabs().length === 0, clippedTabs().join(', '));
+
+      // Headless Chrome will not go below ~485px wide, so the narrow phones the
+      // family actually holds are checked by shrinking the bar itself.
+      var nav = $('nav.tabbar');
+      var original = nav.style.width;
+      nav.style.width = '320px';
+      var narrow = clippedTabs();
+      nav.style.width = original;
+      check('320px幅の端末でもタブ名が切れない', narrow.length === 0, narrow.join(', '));
     });
+  }
+
+  /** @returns {string[]} Labels of tabs whose content does not fit their cell. */
+  function clippedTabs() {
+    return $$('nav.tabbar button').filter(function (button) {
+      return button.scrollWidth > button.clientWidth + 1;
+    }).map(function (button) { return button.textContent.trim(); });
+  }
+
+  /**
+   * Whether the tab bar is showing exactly what the named style calls for.
+   * @param {string} style
+   * @returns {boolean}
+   */
+  function matches(style) {
+    if (style === 'emoji') return shown('.icon-emoji') && !shown('.icon-line');
+    if (style === 'line') return shown('.icon-line') && !shown('.icon-emoji');
+    if (style === 'text') return !shown('.icon-line') && !shown('.icon-emoji');
+    return false;
+  }
+
+  /**
+   * Whether the first tab's icon of the given kind is actually rendered.
+   * @param {string} selector
+   * @returns {boolean}
+   */
+  function shown(selector) {
+    var icon = $('nav.tabbar button ' + selector);
+    return !!icon && window.getComputedStyle(icon).display !== 'none';
   }
 
   /** @returns {string} The header's computed background colour. */

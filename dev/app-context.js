@@ -184,7 +184,7 @@ function seedSampleData(app, options) {
  */
 function renderIndexHtml(extraHead) {
   const template = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
-  const config = loadPureFunctions(['Config.js'], ['APP_TITLE', 'DEFAULT_ACCENT']);
+  const config = loadPureFunctions(['Config.js'], ['APP_TITLE', 'DEFAULT_ACCENT', 'DEFAULT_ICONS']);
   const resolved = template
     .replace(
       /<\?!?=?\s*include\(\s*'([\w-]+)'\s*\)\s*;?\s*\?>/g,

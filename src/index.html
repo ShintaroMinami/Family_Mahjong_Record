@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-accent="<?= DEFAULT_ACCENT ?>">
+<html lang="ja" data-accent="<?= DEFAULT_ACCENT ?>" data-icons="<?= DEFAULT_ICONS ?>">
 <head>
   <meta charset="utf-8">
   <base target="_top">
@@ -11,6 +11,8 @@
     try {
       var savedAccent = window.localStorage.getItem('mahjongAccent');
       if (savedAccent) document.documentElement.setAttribute('data-accent', savedAccent);
+      var savedIcons = window.localStorage.getItem('mahjongIcons');
+      if (savedIcons) document.documentElement.setAttribute('data-icons', savedIcons);
     } catch (error) {
       // Private browsing can refuse localStorage; the default stands.
     }
@@ -158,6 +160,12 @@
         <div class="accent-grid" id="accent-choice"></div>
       </div>
 
+      <div class="card">
+        <h2>タブの表示</h2>
+        <p class="hint">この端末だけの設定です。</p>
+        <div class="accent-grid" id="icons-choice"></div>
+      </div>
+
       <div class="card" id="rule-editor" style="display:none">
         <h2 id="rule-editor-title">新しいルール</h2>
 
@@ -222,11 +230,41 @@
   </main>
 
   <nav class="tabbar">
-    <button data-tab="entry" class="active"><span class="icon">🀄</span>登録</button>
-    <button data-tab="today"><span class="icon">📅</span>今日</button>
-    <button data-tab="history"><span class="icon">📜</span>履歴</button>
-    <button data-tab="stats"><span class="icon">📊</span>統計</button>
-    <button data-tab="settings"><span class="icon">⚙️</span>設定</button>
+    <button data-tab="entry" class="active">
+      <span class="icon icon-emoji">🀄</span>
+      <svg class="icon icon-line" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>
+      </svg>
+      登録
+    </button>
+    <button data-tab="today">
+      <span class="icon icon-emoji">📅</span>
+      <svg class="icon icon-line" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/>
+      </svg>
+      今日
+    </button>
+    <button data-tab="history">
+      <span class="icon icon-emoji">🗂️</span>
+      <svg class="icon icon-line" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/>
+      </svg>
+      履歴
+    </button>
+    <button data-tab="stats">
+      <span class="icon icon-emoji">📊</span>
+      <svg class="icon icon-line" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 20.5h18M7.5 20.5v-5.5M12 20.5v-11M16.5 20.5v-7.5"/>
+      </svg>
+      統計
+    </button>
+    <button data-tab="settings">
+      <span class="icon icon-emoji">⚙️</span>
+      <svg class="icon icon-line" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>
+      </svg>
+      設定
+    </button>
   </nav>
 
   <div id="toast"></div>
