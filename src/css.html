@@ -2,7 +2,7 @@
   /* Green is both the fallback and a selectable palette, so it answers to the
      bare :root and to its own [data-accent] value. */
   :root,
-  :root[data-accent="midori"] {
+  :root[data-accent="green"]  {
     --bg: #f4f6f5;
     --surface: #ffffff;
     --surface-alt: #eef2f0;
@@ -11,6 +11,9 @@
     --muted: #68756e;
     --accent: #1f7a4d;
     --accent-weak: #e3f1ea;
+    /* Text and icons sitting on top of --accent. Light palettes are dark enough
+       to carry white; the dark ones are not, so they flip to near-black. */
+    --on-accent: #ffffff;
     --plus: #0f7b3f;
     --minus: #c0392b;
     --warn-bg: #fff4e0;
@@ -20,20 +23,20 @@
   }
 
   /* ---- accent themes ----
-     --accent does double duty: a background carrying #fff text (header, primary
-     button) and a foreground on light surfaces (active tab, seat badge). Every
-     option below has to stay legible in both roles, which is why the light set
-     is dark and the dark set is light. Green is the default and is defined in
-     :root above. */
-  :root[data-accent="ai"]       { --accent: #1d5b96; --accent-weak: #e2ecf7; }
-  :root[data-accent="enji"]     { --accent: #a3324a; --accent-weak: #f8e4e9; }
-  :root[data-accent="murasaki"] { --accent: #6a4a9c; --accent-weak: #ece5f6; }
-  :root[data-accent="daidai"]   { --accent: #b05e18; --accent-weak: #fbeadb; }
-  :root[data-accent="sumi"]     { --accent: #3f4a52; --accent-weak: #e7ebee; }
+     --accent does double duty: a background carrying --on-accent text (header,
+     primary button) and a foreground on light surfaces (active tab, seat
+     badge). Every option below has to stay legible in both roles, which is why
+     the light set is dark and the dark set is light. Green is the default and
+     is defined in :root above. */
+  :root[data-accent="blue"]   { --accent: #1d5b96; --accent-weak: #e2ecf7; }
+  :root[data-accent="red"]    { --accent: #a3324a; --accent-weak: #f8e4e9; }
+  :root[data-accent="purple"] { --accent: #6a4a9c; --accent-weak: #ece5f6; }
+  :root[data-accent="orange"] { --accent: #b05e18; --accent-weak: #fbeadb; }
+  :root[data-accent="black"]  { --accent: #3f4a52; --accent-weak: #e7ebee; }
 
   @media (prefers-color-scheme: dark) {
     :root,
-    :root[data-accent="midori"] {
+    :root[data-accent="green"]  {
       --bg: #14181a;
       --surface: #1e2427;
       --surface-alt: #262d31;
@@ -42,17 +45,18 @@
       --muted: #9aa8a2;
       --accent: #4bbd84;
       --accent-weak: #1d3a2c;
+      --on-accent: #14181a;
       --plus: #5ed49a;
       --minus: #ff8a7a;
       --warn-bg: #3a2f1a;
       --warn-border: #8a6a2e;
     }
 
-    :root[data-accent="ai"]       { --accent: #63a8e6; --accent-weak: #17293c; }
-    :root[data-accent="enji"]     { --accent: #e8899b; --accent-weak: #3a1f27; }
-    :root[data-accent="murasaki"] { --accent: #a98ee0; --accent-weak: #2a2040; }
-    :root[data-accent="daidai"]   { --accent: #e5a05f; --accent-weak: #3a2a17; }
-    :root[data-accent="sumi"]     { --accent: #9aabb5; --accent-weak: #242d33; }
+    :root[data-accent="blue"]   { --accent: #63a8e6; --accent-weak: #17293c; }
+    :root[data-accent="red"]    { --accent: #e8899b; --accent-weak: #3a1f27; }
+    :root[data-accent="purple"] { --accent: #a98ee0; --accent-weak: #2a2040; }
+    :root[data-accent="orange"] { --accent: #e5a05f; --accent-weak: #3a2a17; }
+    :root[data-accent="black"]  { --accent: #9aabb5; --accent-weak: #242d33; }
   }
 
   * { box-sizing: border-box; }
@@ -79,7 +83,7 @@
     gap: 8px;
     padding: 10px 16px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
   }
   header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .02em; }
   header .sub { font-size: 12px; opacity: .85; }
@@ -163,7 +167,7 @@
   button.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 600;
     width: 100%;
     padding: 13px;
@@ -286,21 +290,21 @@
     flex: 0 0 auto;
     border: 1px solid rgba(0, 0, 0, .15);
   }
-  .swatch-midori   { background: #1f7a4d; }
-  .swatch-ai       { background: #1d5b96; }
-  .swatch-enji     { background: #a3324a; }
-  .swatch-murasaki { background: #6a4a9c; }
-  .swatch-daidai   { background: #b05e18; }
-  .swatch-sumi     { background: #3f4a52; }
+  .swatch-green  { background: #1f7a4d; }
+  .swatch-blue   { background: #1d5b96; }
+  .swatch-red    { background: #a3324a; }
+  .swatch-purple { background: #6a4a9c; }
+  .swatch-orange { background: #b05e18; }
+  .swatch-black  { background: #3f4a52; }
 
   @media (prefers-color-scheme: dark) {
     .swatch { border-color: rgba(255, 255, 255, .2); }
-    .swatch-midori   { background: #4bbd84; }
-    .swatch-ai       { background: #63a8e6; }
-    .swatch-enji     { background: #e8899b; }
-    .swatch-murasaki { background: #a98ee0; }
-    .swatch-daidai   { background: #e5a05f; }
-    .swatch-sumi     { background: #9aabb5; }
+    .swatch-green  { background: #4bbd84; }
+    .swatch-blue   { background: #63a8e6; }
+    .swatch-red    { background: #e8899b; }
+    .swatch-purple { background: #a98ee0; }
+    .swatch-orange { background: #e5a05f; }
+    .swatch-black  { background: #9aabb5; }
   }
 
   .uma-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

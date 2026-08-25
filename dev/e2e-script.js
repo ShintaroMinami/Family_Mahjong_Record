@@ -349,7 +349,7 @@
       // ---- accent themes ----
       click($('[data-tab="settings"]'));
       var before = headerColour();
-      click($('#accent-choice button[data-accent-id="enji"]'));
+      click($('#accent-choice button[data-accent-id="red"]'));
       return waitFor('配色の反映', function () {
         return headerColour() !== before;
       }).then(function () { return before; });
@@ -357,17 +357,24 @@
       check('配色を選ぶとヘッダーの色が変わる', headerColour() !== before,
         before + ' → ' + headerColour());
       check('選んだ配色が端末に記憶される',
-        window.localStorage.getItem('mahjongAccent') === 'enji');
+        window.localStorage.getItem('mahjongAccent') === 'red');
       check('選択中の配色に印が付く',
-        $('#accent-choice button[data-accent-id="enji"]').className.indexOf('active') >= 0);
+        $('#accent-choice button[data-accent-id="red"]').className.indexOf('active') >= 0);
 
-      var enji = headerColour();
-      click($('#accent-choice button[data-accent-id="midori"]'));
-      return waitFor('既定色へ戻す', function () { return headerColour() !== enji; });
+      // The labels are four katakana wide in a three-column grid, which is the
+      // tightest text in the app.
+      var clipped = $$('#accent-choice button').filter(function (button) {
+        return button.scrollWidth > button.clientWidth + 1;
+      }).map(function (button) { return button.textContent; });
+      check('配色ボタンのラベルが切れない', clipped.length === 0, clipped.join(', '));
+
+      var red = headerColour();
+      click($('#accent-choice button[data-accent-id="green"]'));
+      return waitFor('既定色へ戻す', function () { return headerColour() !== red; });
     }).then(function () {
       check('既定色を選び直せる',
-        window.localStorage.getItem('mahjongAccent') === 'midori' &&
-        document.documentElement.getAttribute('data-accent') === 'midori');
+        window.localStorage.getItem('mahjongAccent') === 'green' &&
+        document.documentElement.getAttribute('data-accent') === 'green');
     });
   }
 

@@ -19,8 +19,9 @@ var APP_TITLE = '家族麻雀 スコア記録';
  * Choosing here rather than in css.html keeps every decision in one file; the
  * palettes themselves live in css.html under [data-accent].
  *
- * One of: 'midori' (緑) 'ai' (藍) 'enji' (臙脂) 'murasaki' (紫) 'daidai' (橙)
- * 'sumi' (墨). An id no palette defines falls back to green rather than
- * breaking, and tests/config.test.js fails the build if you mistype one.
+ * One of: 'green' (グリーン) 'blue' (ブルー) 'red' (レッド) 'purple' (パープル)
+ * 'orange' (オレンジ) 'black' (ブラック). An id no palette defines falls back to
+ * green rather than breaking, and tests/config.test.js fails the build if you
+ * mistype one.
  */
-var DEFAULT_ACCENT = 'midori';
+var DEFAULT_ACCENT = 'green';

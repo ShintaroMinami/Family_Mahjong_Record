@@ -26,15 +26,15 @@
   var PASSCODE_STORAGE_KEY = 'mahjongPasscode';
   var ACCENT_STORAGE_KEY = 'mahjongAccent';
 
-  // Ids match the [data-accent] selectors in css.html; 'midori' is the default
-  // and carries no attribute, so :root alone styles it.
+  // Ids match the [data-accent] selectors in css.html. Green answers to both
+  // that attribute and the bare :root, so it works as a choice and a fallback.
   var ACCENTS = [
-    { id: 'midori', label: '緑' },
-    { id: 'ai', label: '藍' },
-    { id: 'enji', label: '臙脂' },
-    { id: 'murasaki', label: '紫' },
-    { id: 'daidai', label: '橙' },
-    { id: 'sumi', label: '墨' }
+    { id: 'green', label: 'グリーン' },
+    { id: 'blue', label: 'ブルー' },
+    { id: 'red', label: 'レッド' },
+    { id: 'purple', label: 'パープル' },
+    { id: 'orange', label: 'オレンジ' },
+    { id: 'black', label: 'ブラック' }
   ];
 
   // ---------------------------------------------------------------- helpers
@@ -733,7 +733,7 @@
    * @returns {string}
    */
   function currentAccent() {
-    return document.documentElement.getAttribute('data-accent') || 'midori';
+    return document.documentElement.getAttribute('data-accent') || 'green';
   }
 
   /** @returns {string} The accent this browser is set to. */

@@ -86,16 +86,16 @@ npm run typecheck  # JSDocベースの型チェック
 
 ```js
 var APP_TITLE = '家族麻雀 スコア記録';   // タブ・画面見出し・スプレッドシート名
-var DEFAULT_ACCENT = 'midori';          // 配色の既定
+var DEFAULT_ACCENT = 'green';          // 配色の既定
 ```
 
 `APP_TITLE` は、ブラウザのタブ・画面上部の見出し・`setup()` が作るスプレッドシートの
 ファイル名をまとめて決める。
 
-`DEFAULT_ACCENT` は、まだ自分で選んでいない人に出る配色。選べるのは
-`midori`（緑）`ai`（藍）`enji`（臙脂）`murasaki`（紫）`daidai`（橙）`sumi`（墨）の6つで、
-使う人は設定タブから各自変更できる（端末ごとに記憶される）。存在しない id を書くと
-緑にフォールバックするが、`npm test` が検出して落ちる。
+`DEFAULT_ACCENT` は、まだ自分で選んでいない人に出る配色。`green` `blue` `red`
+`purple` `orange` `black` の6つから選ぶ。使う人は設定タブから各自変更できる
+（端末ごとに記憶される）。存在しない id を書くと `green` にフォールバックするが、
+`npm test` が検出して落ちる。
 
 > `clasp create --title` で指定するのは **Apps Script のプロジェクト名**であって、
 > アプリの表示名ではない。両者は無関係なので、`--title` を変えてもタブには
