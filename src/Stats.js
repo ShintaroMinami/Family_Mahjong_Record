@@ -14,8 +14,11 @@
  * @property {number} avgRank     Mean finishing rank.
  * @property {number[]} rankCounts Count per rank, index 0 is first place.
  * @property {number} avgRawScore Mean raw score.
- * @property {number} topRate     Share of games finished first, 0..1.
- * @property {number} lastRate    Share of games finished last, 0..1.
+ * @property {number} rank1Rate   Share of games finished first, 0..1.
+ * @property {number} rank2Rate   Share finished second.
+ * @property {number} rank3Rate   Share finished third.
+ * @property {number} rank4Rate   Share finished fourth; 0 at a three-player table.
+ * @property {number} tobiRate    Share of games ended below zero.
  * @property {number} tobiCount   Games ended below zero.
  * @property {number} chips       Net chips.
  */
@@ -39,10 +42,9 @@ function round(value, digits) {
  * their own player count so mixed 3/4-player periods aggregate correctly.
  *
  * @param {Record<string, any>[]} results Result rows, each with playerId, rank, totalPt...
- * @param {Record<string, number>} playerCountByGame Player count keyed by gameId.
  * @returns {PlayerStats[]} Sorted by totalPt, highest first.
  */
-function aggregatePlayerStats(results, playerCountByGame) {
+function aggregatePlayerStats(results) {
   /** @type {Record<string, PlayerStats & {_rankSum: number, _scoreSum: number}>} */
   var byPlayer = {};
 
@@ -53,11 +55,11 @@ function aggregatePlayerStats(results, playerCountByGame) {
         playerId: row.playerId,
         games: 0, totalPt: 0, avgPt: 0, avgRank: 0,
         rankCounts: [0, 0, 0, 0],
-        avgRawScore: 0, topRate: 0, lastRate: 0, tobiCount: 0, chips: 0,
+        avgRawScore: 0, tobiCount: 0, chips: 0,
+        rank1Rate: 0, rank2Rate: 0, rank3Rate: 0, rank4Rate: 0, tobiRate: 0,
         _rankSum: 0, _scoreSum: 0
       };
     }
-    var seats = playerCountByGame[row.gameId] || 4;
     stats.games += 1;
     stats.totalPt += row.totalPt;
     stats._rankSum += row.rank;
@@ -65,8 +67,6 @@ function aggregatePlayerStats(results, playerCountByGame) {
     stats.chips += row.chips || 0;
     if (row.tobi) stats.tobiCount += 1;
     if (row.rank >= 1 && row.rank <= 4) stats.rankCounts[row.rank - 1] += 1;
-    if (row.rank === 1) stats.topRate += 1;
-    if (row.rank === seats) stats.lastRate += 1;
   });
 
   return Object.keys(byPlayer).map(function (playerId) {
@@ -80,10 +80,13 @@ function aggregatePlayerStats(results, playerCountByGame) {
       avgRank: round(stats._rankSum / games, 2),
       rankCounts: stats.rankCounts,
       avgRawScore: Math.round(stats._scoreSum / games),
-      topRate: round(stats.topRate / games, 3),
-      // 連対 is 1st or 2nd, in three-player games as well as four.
-      top2Rate: round((stats.rankCounts[0] + stats.rankCounts[1]) / games, 3),
-      lastRate: round(stats.lastRate / games, 3),
+      // One rate per placing rather than the top/last pair those used to be:
+      // with the table size fixed, "last" is just the bottom rate under another
+      // name, and the middle placings were not reachable at all.
+      rank1Rate: round(stats.rankCounts[0] / games, 3),
+      rank2Rate: round(stats.rankCounts[1] / games, 3),
+      rank3Rate: round(stats.rankCounts[2] / games, 3),
+      rank4Rate: round(stats.rankCounts[3] / games, 3),
       tobiRate: round(stats.tobiCount / games, 3),
       tobiCount: stats.tobiCount,
       chips: stats.chips

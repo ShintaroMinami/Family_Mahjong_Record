@@ -17,7 +17,7 @@ test('aggregates games, points and rank distribution per player', () => {
     row('G2', 'P1', 4, -30, { rawScore: 12000 }),
     row('G2', 'P2', 1, 45, { rawScore: 44000 })
   ];
-  const stats = aggregatePlayerStats(results, { G1: 4, G2: 4 });
+  const stats = aggregatePlayerStats(results);
 
   const p1 = stats.find((s) => s.playerId === 'P1');
   assert.equal(p1.games, 2);
@@ -25,8 +25,9 @@ test('aggregates games, points and rank distribution per player', () => {
   assert.equal(p1.avgPt, 10);
   assert.equal(p1.avgRank, 2.5);
   assert.deepEqual(p1.rankCounts, [1, 0, 0, 1]);
-  assert.equal(p1.topRate, 0.5);
-  assert.equal(p1.lastRate, 0.5);
+  assert.equal(p1.rank1Rate, 0.5);
+  assert.equal(p1.rank4Rate, 0.5);
+  assert.equal(p1.rank2Rate, 0);
   assert.equal(p1.avgRawScore, 28500);
 });
 
@@ -38,16 +39,19 @@ test('sorts players by total points, highest first', () => {
   assert.deepEqual(stats.map((s) => s.playerId), ['P2', 'P1']);
 });
 
-test('last place is rank 3 in a three-player game', () => {
+test('a three-player table leaves the fourth-place rate at zero', () => {
   const results = [
     row('G1', 'P1', 1, 35),
     row('G1', 'P2', 2, 0),
     row('G1', 'P3', 3, -35)
   ];
-  const stats = aggregatePlayerStats(results, { G1: 3 });
+  const stats = aggregatePlayerStats(results);
 
-  assert.equal(stats.find((s) => s.playerId === 'P3').lastRate, 1);
-  assert.equal(stats.find((s) => s.playerId === 'P2').lastRate, 0);
+  // Last place is third here; nobody can finish fourth, so that rate is zero
+  // for everyone rather than standing in for last.
+  assert.equal(stats.find((s) => s.playerId === 'P3').rank3Rate, 1);
+  assert.equal(stats.find((s) => s.playerId === 'P3').rank4Rate, 0);
+  assert.equal(stats.find((s) => s.playerId === 'P2').rank3Rate, 0);
 });
 
 test('counts bankruptcies and nets chips', () => {
@@ -56,7 +60,7 @@ test('counts bankruptcies and nets chips', () => {
     row('G1', 'P2', 4, -50, { chips: -3, tobi: true }),
     row('G2', 'P2', 4, -40, { chips: 1, tobi: true })
   ];
-  const stats = aggregatePlayerStats(results, { G1: 4, G2: 4 });
+  const stats = aggregatePlayerStats(results);
 
   const p2 = stats.find((s) => s.playerId === 'P2');
   assert.equal(p2.tobiCount, 2);
@@ -74,16 +78,15 @@ test('rates are counted per game played', () => {
     row('G2', 'P3', 4, -40, { tobi: true }),
     row('G2', 'P4', 3, -20)
   ];
-  const seats = { G1: 4, G2: 4 };
   const by = {};
-  aggregatePlayerStats(results, seats).forEach((p) => { by[p.playerId] = p; });
+  aggregatePlayerStats(results).forEach((p) => { by[p.playerId] = p; });
 
-  // 連対 is 1st or 2nd: P1 took both, P3 neither.
-  assert.equal(by.P1.top2Rate, 1);
-  assert.equal(by.P1.topRate, 0.5);
-  assert.equal(by.P1.lastRate, 0);
-  assert.equal(by.P3.top2Rate, 0);
-  assert.equal(by.P3.lastRate, 0.5);
+  // One rate per placing: P1 went 1st then 2nd, P3 went 3rd then 4th.
+  assert.equal(by.P1.rank1Rate, 0.5);
+  assert.equal(by.P1.rank2Rate, 0.5);
+  assert.equal(by.P1.rank4Rate, 0);
+  assert.equal(by.P3.rank3Rate, 0.5);
+  assert.equal(by.P3.rank4Rate, 0.5);
 
   // Bankruptcy is a rate as well as a count, so it can be compared across
   // players who have played different numbers of games.

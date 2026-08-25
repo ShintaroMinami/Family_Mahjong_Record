@@ -399,14 +399,26 @@ function apiGetDaySummary(dateKey, passcode) {
   var results = repoListResults({ gameIds: games.map(function (g) { return g.gameId; }) });
   var nameMap = buildPlayerNameMap_();
 
-  /** @type {Record<string, number>} */
-  var playerCountByGame = {};
-  games.forEach(function (game) { playerCountByGame[game.gameId] = game.playerCount; });
+  // The day's games are listed together, but summarised apart: an average
+  // placing over a mix of three- and four-handed games is not a real number.
+  // Only sizes that were actually played get a summary.
+  var summaries = [4, 3].map(function (playerCount) {
+    var subset = games.filter(function (game) { return game.playerCount === playerCount; });
+    /** @type {Record<string, boolean>} */
+    var gameIds = {};
+    subset.forEach(function (game) { gameIds[game.gameId] = true; });
+    var rows = results.filter(function (row) { return gameIds[row.gameId]; });
+    return {
+      playerCount: playerCount,
+      gameCount: subset.length,
+      players: withNames_(aggregatePlayerStats(rows), nameMap)
+    };
+  }).filter(function (summary) { return summary.gameCount > 0; });
 
   return {
     date: date,
     gameCount: games.length,
-    players: withNames_(aggregatePlayerStats(results, playerCountByGame), nameMap),
+    summaries: summaries,
     games: joinGames_(games, results, nameMap)
   };
 }
@@ -436,8 +448,9 @@ function apiGetHistory(options, passcode) {
 
 /**
  * Returns aggregated statistics for a period and table size.
- * @param {{from?: string, to?: string, playerCount?: number,
- *   withSeries?: boolean}} [options] playerCount defaults to 4.
+ * @param {{from?: string, to?: string, playerCount?: number, recent?: number,
+ *   withSeries?: boolean}} [options] playerCount defaults to 4; recent, when
+ *   set, keeps only that many of the most recent games and ignores from/to.
  * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  * @returns {Record<string, any>}
  */
@@ -449,21 +462,31 @@ function apiGetStats(options, passcode) {
   // Three- and four-handed games are not comparable: the uma, the oka and the
   // range a placing can take all differ, so an average over both means nothing.
   var playerCount = normalizeNumber(opts.playerCount) === 3 ? 3 : 4;
+
+  // "The last N" answers the same question a date range does, so it replaces
+  // one rather than narrowing it -- intersecting the two would quietly return
+  // fewer games than either asked for.
+  var recent = Math.max(0, normalizeNumber(opts.recent));
+  if (recent) {
+    from = undefined;
+    to = undefined;
+  }
+
+  // repoListGames returns newest first, so the head of the list is what is
+  // wanted.
   var games = repoListGames({ from: from, to: to, playerCount: playerCount });
+  if (recent) games = games.slice(0, recent);
   var results = repoListResults({ gameIds: games.map(function (g) { return g.gameId; }) });
   var nameMap = buildPlayerNameMap_();
-
-  /** @type {Record<string, number>} */
-  var playerCountByGame = {};
-  games.forEach(function (game) { playerCountByGame[game.gameId] = game.playerCount; });
 
   /** @type {Record<string, any>} */
   var response = {
     from: from || '',
     to: to || '',
     playerCount: playerCount,
+    recent: recent,
     gameCount: games.length,
-    players: withNames_(aggregatePlayerStats(results, playerCountByGame), nameMap)
+    players: withNames_(aggregatePlayerStats(results), nameMap)
   };
   if (opts.withSeries) {
     var ordered = games.slice().reverse().map(function (game) { return game.gameId; });

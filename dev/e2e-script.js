@@ -208,6 +208,8 @@
       click($('[data-tab="today"]'));
       check('今日タブが開く', $('#panel-today').classList.contains('active'));
       check('日別サマリに合計行がある', $$('#day-summary table tbody tr').length > 0);
+      check('日別集計の見出しに人数が出る',
+        /4人/.test(textOf('#day-summary h2')), textOf('#day-summary h2'));
       checkNoOverflow('今日');
 
       // --- history tab ------------------------------------------------------
@@ -277,12 +279,40 @@
       check('人数の切り替えが出ている',
         $$('#stats-player-count button').length === 2,
         $$('#stats-player-count button').map(function (b) { return b.textContent; }).join(' '));
+      check('集計対象と集計期間が別のカードに分かれている',
+        $('#stats-player-count').closest('.card') !== $('#stats-range').closest('.card'));
+      check('対局数の見出しになっている', !!header('対局数'), headers().map(function (th) {
+        return th.textContent.replace(/[▼▲]/g, '').trim();
+      }).join(','));
       var statsPair = sameHeight('#stats-from', '#stats-to');
       check('統計: 開始と終了の高さが揃う', statsPair.ok, statsPair.detail);
       checkNoOverflow('統計');
       check('累積グラフが描画される', $$('#stats-body svg polyline').length > 0,
         $$('#stats-body svg polyline').length);
       check('凡例が出る', $$('#stats-body .legend span').length > 0);
+
+      // --- recent-games period ----------------------------------------------
+      // The seeded sample is smaller than any of the offered counts, so this
+      // checks the switch works, not that it narrows anything; api.test.js
+      // covers the narrowing against a set big enough to show it.
+      var allGames = column('対局数').reduce(function (a, b) { return a + b; }, 0);
+      click($('#stats-range button[data-recent="20"]'));
+      return waitFor('直近N対局へ切替', function () {
+        return /直近/.test(textOf('#stats-body h2'));
+      }).then(function () {
+        check('直近N対局に切り替わる', /直近/.test(textOf('#stats-body h2')),
+          textOf('#stats-body h2'));
+        var some = column('対局数').reduce(function (a, b) { return a + b; }, 0);
+        check('対象が全期間より減るか同数', some <= allGames, some + ' <= ' + allGames);
+
+        click($('#stats-range button[data-recent="0"]'));
+        return waitFor('全期間へ戻す', function () {
+          return !/直近/.test(textOf('#stats-body h2'));
+        });
+      }).then(function () {
+        check('全期間に戻せる',
+          column('対局数').reduce(function (a, b) { return a + b; }, 0) === allGames);
+      }).then(function () {
 
       // --- three- vs four-handed --------------------------------------------
       click($('#stats-player-count button[data-count="3"]'));
@@ -321,24 +351,22 @@
 
       click($('#stats-body button[data-metric="totalPt"]'));
       check('合計に戻せる', polylinePoints() === byTotalPoints, activeMetric());
-      });
-
 
       // --- sorting the statistics tables ------------------------------------
       check('通算成績の既定は合計の降順', sortedOn('合計') === '▼', sortedOn('合計'));
-      check('詳細の既定は連対率の降順', sortedOn('連対率', 1) === '▼', sortedOn('連対率', 1));
+      check('詳細の既定は1位率の降順', sortedOn('1位率', 1) === '▼', sortedOn('1位率', 1));
       var byTotal = names();
-      var byTop2 = names(1);
+      var byRank1 = names(1);
       check('合計が高い順に並ぶ', descending(column('合計')), column('合計').join(' '));
-      check('連対率が高い順に並ぶ',
-        descending(column('連対率', 1)), column('連対率', 1).join(' '));
+      check('1位率が高い順に並ぶ',
+        descending(column('1位率', 1)), column('1位率', 1).join(' '));
 
       check('名前の見出しは並べ替えの対象外', !header('名前').getAttribute('data-sort'));
       var detailHeads = headers(1).map(function (th) {
         return th.textContent.replace(/[▼▲]/g, '').trim();
       });
-      check('詳細は5項目を並べる',
-        detailHeads.join(',') === '名前,連対率,トップ率,ラス率,トビ率,平均素点',
+      check('詳細は着順ごとの率を並べる',
+        detailHeads.join(',') === '名前,1位率,2位率,3位率,4位率,トビ率,平均素点',
         detailHeads.join(','));
 
       click(header('平順'));
@@ -346,7 +374,7 @@
       check('平順が小さい順に並ぶ', ascending(column('平順')), column('平順').join(' '));
       check('合計の印が消える', sortedOn('合計') === '', sortedOn('合計'));
       check('通算成績を並べ替えても詳細は動かない',
-        names(1).join() === byTop2.join(), names(1).join(' '));
+        names(1).join() === byRank1.join(), names(1).join(' '));
 
       click(header('平順'));
       check('もう一度押すと降順になる', sortedOn('平順') === '▼', sortedOn('平順'));
@@ -361,8 +389,11 @@
 
       click(header('合計'));
       check('通算成績を既定に戻せる', names().join() === byTotal.join(), names().join(' '));
-      click(header('連対率', 1));
-      check('詳細を既定に戻せる', names(1).join() === byTop2.join(), names(1).join(' '));
+      click(header('1位率', 1));
+      check('詳細を既定に戻せる', names(1).join() === byRank1.join(), names(1).join(' '));
+      });
+      });
+
 
       // --- add player -------------------------------------------------------
       click($('[data-tab="entry"]'));

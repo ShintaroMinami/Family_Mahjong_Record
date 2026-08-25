@@ -70,7 +70,42 @@ test('submitting a game stores it and it shows up in the day summary', () => {
   assert.equal(day.games[0].paifuId, 'abc-123');
   assert.equal(day.games[0].results.length, 4);
   assert.deepEqual(day.games[0].results.map((r) => r.rank), [1, 2, 3, 4]);
-  assert.equal(day.players.reduce((sum, p) => sum + p.totalPt, 0), 0);
+  assert.deepEqual(day.summaries.map((s) => s.playerCount), [4]);
+  assert.equal(day.summaries[0].players.reduce((sum, p) => sum + p.totalPt, 0), 0);
+});
+
+test('a day mixing table sizes is summarised separately but listed together', () => {
+  const { app, players } = freshApp();
+  const three = app.call('apiSaveRule', {
+    name: 'テスト三麻', playerCount: 3, startPoints: 35000, returnPoints: 40000,
+    uma: [20, 0, -20], tobiBonus: 10
+  });
+
+  app.call('apiSubmitGame', gamePayload(players, [45200, 28700, 17800, 8300]));
+  app.call('apiSubmitGame', {
+    gameDate: '2026-08-24',
+    ruleId: three.ruleId,
+    entries: players.slice(0, 3).map((player, seat) => ({
+      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat], chips: 0
+    }))
+  });
+
+  const day = app.call('apiGetDaySummary', '2026-08-24');
+
+  // Four-handed first, and only sizes that were actually played appear.
+  assert.deepEqual(day.summaries.map((s) => s.playerCount), [4, 3]);
+  assert.deepEqual(day.summaries.map((s) => s.gameCount), [1, 1]);
+  assert.equal(day.summaries[0].players.length, 4);
+  assert.equal(day.summaries[1].players.length, 3);
+
+  // Each summary is zero-sum on its own, which a mixed one need not be.
+  day.summaries.forEach((summary) => {
+    assert.ok(Math.abs(summary.players.reduce((sum, p) => sum + p.totalPt, 0)) < 0.005);
+  });
+
+  // The list itself stays mixed: it is a record of the day, not an aggregate.
+  assert.equal(day.gameCount, 2);
+  assert.equal(day.games.length, 2);
 });
 
 test('game ids increment per day', () => {
@@ -246,6 +281,32 @@ test('statistics cover one table size at a time', () => {
   // produce a mixed aggregate.
   assert.equal(app.call('apiGetStats', { playerCount: 0 }).playerCount, 4);
   assert.equal(app.call('apiGetStats', { playerCount: 5 }).playerCount, 4);
+});
+
+test('a recent-games count replaces the date range', () => {
+  const { app, players } = freshApp();
+  const scores = [45200, 28700, 17800, 8300];
+  for (let n = 0; n < 5; n += 1) {
+    const payload = gamePayload(players, scores);
+    payload.gameDate = `2026-08-${20 + n}`;
+    app.call('apiSubmitGame', payload);
+  }
+
+  assert.equal(app.call('apiGetStats', {}).gameCount, 5);
+
+  // The newest two, whatever their dates.
+  const recent = app.call('apiGetStats', { recent: 2 });
+  assert.equal(recent.recent, 2);
+  assert.equal(recent.gameCount, 2);
+
+  // Dates are ignored while a count is in force, rather than combining into an
+  // intersection nobody asked for.
+  const both = app.call('apiGetStats', { recent: 2, from: '2026-08-20', to: '2026-08-20' });
+  assert.equal(both.gameCount, 2);
+
+  // Asking for more than there are is not an error.
+  assert.equal(app.call('apiGetStats', { recent: 99 }).gameCount, 5);
+  assert.equal(app.call('apiGetStats', { recent: 0 }).recent, 0);
 });
 
 test('statistics stay zero-sum and expose a cumulative series', () => {

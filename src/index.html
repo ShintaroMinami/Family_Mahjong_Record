@@ -132,22 +132,28 @@
     <section id="panel-stats" class="panel">
       <div class="card">
         <h2>集計対象</h2>
-        <div class="btn-row" style="margin-bottom:12px" id="stats-player-count">
+        <div class="btn-row" style="margin-bottom:0" id="stats-player-count">
           <button type="button" data-count="4" class="choice active">4人（四麻）</button>
           <button type="button" data-count="3" class="choice">3人（三麻）</button>
         </div>
-        <p class="hint" style="margin:-6px 0 12px">
+        <p class="hint" style="margin:10px 0 0">
           ウマ・オカ・順位の幅が違うため、四麻と三麻は分けて集計します。
         </p>
-        <label>集計期間</label>
-        <div class="field-row" style="margin-bottom:0">
+      </div>
+
+      <div class="card">
+        <h2>集計期間</h2>
+        <div class="btn-row" id="stats-range">
+          <button type="button" data-recent="0" class="choice active">全期間</button>
+          <button type="button" data-recent="20" class="choice">直近20</button>
+          <button type="button" data-recent="50" class="choice">直近50</button>
+          <button type="button" data-recent="100" class="choice">直近100</button>
+        </div>
+        <div class="field-row" style="margin:12px 0 0">
           <div><label for="stats-from">開始</label><input type="date" id="stats-from"></div>
           <div><label for="stats-to">終了</label><input type="date" id="stats-to"></div>
         </div>
-        <div class="btn-row" style="margin-top:10px">
-          <button id="btn-stats-load">集計</button>
-          <button id="btn-stats-all">全期間</button>
-        </div>
+        <button id="btn-stats-load" style="width:100%;margin-top:10px">この期間で集計</button>
       </div>
       <div id="stats-body"></div>
     </section>

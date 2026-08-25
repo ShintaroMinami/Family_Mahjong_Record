@@ -25,9 +25,12 @@
     // The two tables on the statistics tab sort independently: they answer
     // different questions, and the columns barely overlap.
     statsSort: { key: 'totalPt', dir: -1 },
-    detailSort: { key: 'top2Rate', dir: -1 },
+    detailSort: { key: 'rank1Rate', dir: -1 },
     chartMetric: 'totalPt',
     statsPlayerCount: 4,
+    // 0 means the whole period; anything else keeps that many recent games and
+    // makes the date fields inactive.
+    statsRecent: 0,
     // The shared passcode, remembered per browser. Empty when the gate is off.
     passcode: ''
   };
@@ -302,7 +305,7 @@
    */
   var PLAYER_COLUMNS = [
     { label: '名前', key: null },
-    { label: '局数', key: 'games' },
+    { label: '対局数', key: 'games' },
     { label: '合計', key: 'totalPt' },
     { label: '平均', key: 'avgPt' },
     { label: '平順', key: 'avgRank' },
@@ -311,13 +314,30 @@
     { label: 'チップ', key: 'chips' }
   ];
 
+  /**
+   * The detail table. `format` renders one cell, so adding a column does not
+   * mean touching the row builder as well.
+   *
+   * The fourth-place column is dropped at a three-player table, where it would
+   * be a row of zeroes rather than a missing statistic.
+   */
   var DETAIL_COLUMNS = [
-    { label: '名前', key: null },
-    { label: '連対率', key: 'top2Rate' },
-    { label: 'トップ率', key: 'topRate' },
-    { label: 'ラス率', key: 'lastRate' },
-    { label: 'トビ率', key: 'tobiRate' },
-    { label: '平均素点', key: 'avgRawScore' }
+    { label: '名前', key: null, format: function (row) { return escapeHtml(row.name); } },
+    { label: '1位率', key: 'rank1Rate', format: function (row) { return fmtPct(row.rank1Rate); } },
+    { label: '2位率', key: 'rank2Rate', format: function (row) { return fmtPct(row.rank2Rate); } },
+    { label: '3位率', key: 'rank3Rate', format: function (row) { return fmtPct(row.rank3Rate); } },
+    {
+      label: '4位率',
+      key: 'rank4Rate',
+      fourOnly: true,
+      format: function (row) { return fmtPct(row.rank4Rate); }
+    },
+    { label: 'トビ率', key: 'tobiRate', format: function (row) { return fmtPct(row.tobiRate); } },
+    {
+      label: '平均素点',
+      key: 'avgRawScore',
+      format: function (row) { return row.avgRawScore.toLocaleString(); }
+    }
   ];
 
   /**
@@ -393,8 +413,16 @@
   }
 
   function renderDay(summary) {
-    var html = '<div class="card"><h2>' + escapeHtml(summary.date) + ' の成績（' +
-      summary.gameCount + '半荘）</h2>' + playerTable(summary.players) + '</div>';
+    var html = '';
+    if (!summary.summaries.length) {
+      html += '<div class="card"><h2>' + escapeHtml(summary.date) + ' の成績</h2>' +
+        '<div class="empty">対局がありません</div></div>';
+    }
+    summary.summaries.forEach(function (part) {
+      html += '<div class="card"><h2>' + escapeHtml(summary.date) + ' の成績（' +
+        part.playerCount + '人 ' + part.gameCount + '半荘）</h2>' +
+        playerTable(part.players) + '</div>';
+    });
     if (summary.games.length) {
       html += '<div class="card"><h2>対局一覧</h2>' +
         summary.games.map(function (game) { return gameCard(game, { showActions: true }); }).join('') +
@@ -542,22 +570,24 @@
 
   function renderStats(stats) {
     var players = sortPlayers(stats.players, state.statsSort);
-    var period = (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
+    var period = stats.recent
+      ? '直近' + stats.recent + '対局'
+      : (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
     var html = '<div class="card"><h2>' + escapeHtml(period) + '（' +
       stats.playerCount + '人 ' + stats.gameCount + '半荘）</h2>' +
       '<p class="hint">見出しをタップすると並べ替えられます。</p>' +
       playerTable(players, { sort: state.statsSort }) + '</div>';
     html += renderChart(stats);
     if (players.length) {
+      var detailColumns = DETAIL_COLUMNS.filter(function (column) {
+        return !column.fourOnly || stats.playerCount === 4;
+      });
       html += '<div class="card"><h2>詳細</h2><div class="table-wrap"><table>' +
-        tableHead(DETAIL_COLUMNS, state.detailSort, 'detail') + '<tbody>' +
+        tableHead(detailColumns, state.detailSort, 'detail') + '<tbody>' +
         sortPlayers(stats.players, state.detailSort).map(function (row) {
-          return '<tr><td>' + escapeHtml(row.name) + '</td>' +
-            '<td>' + fmtPct(row.top2Rate) + '</td>' +
-            '<td>' + fmtPct(row.topRate) + '</td>' +
-            '<td>' + fmtPct(row.lastRate) + '</td>' +
-            '<td>' + fmtPct(row.tobiRate) + '</td>' +
-            '<td>' + row.avgRawScore.toLocaleString() + '</td></tr>';
+          return '<tr>' + detailColumns.map(function (column) {
+            return '<td>' + column.format(row) + '</td>';
+          }).join('') + '</tr>';
         }).join('') + '</tbody></table></div></div>';
     }
     $('stats-body').innerHTML = html;
@@ -828,12 +858,26 @@
       .then(function () { busy(false); });
   }
 
+  /**
+   * Marks which of the period buttons is in force, or none of them when an
+   * explicit date range is being used.
+   *
+   * @param {?HTMLElement} active
+   * @returns {void}
+   */
+  function markStatsRange(active) {
+    Array.prototype.forEach.call($('stats-range').children, function (button) {
+      button.classList.toggle('active', button === active);
+    });
+  }
+
   function loadStats() {
     busy(true);
     return call('apiGetStats', {
-      from: $('stats-from').value,
-      to: $('stats-to').value,
+      from: state.statsRecent ? '' : $('stats-from').value,
+      to: state.statsRecent ? '' : $('stats-to').value,
       playerCount: state.statsPlayerCount,
+      recent: state.statsRecent,
       withSeries: true
     })
       .then(function (stats) { state.stats = stats; renderStats(stats); })
@@ -1111,10 +1155,19 @@
       loadStats();
     });
 
-    $('btn-stats-load').addEventListener('click', loadStats);
-    $('btn-stats-all').addEventListener('click', function () {
-      $('stats-from').value = '';
-      $('stats-to').value = '';
+    $('stats-range').addEventListener('click', function (event) {
+      var button = event.target.closest('button[data-recent]');
+      if (!button) return;
+      state.statsRecent = Number(button.getAttribute('data-recent'));
+      markStatsRange(button);
+      loadStats();
+    });
+
+    $('btn-stats-load').addEventListener('click', function () {
+      // Picking dates is its own answer to the same question, so it clears
+      // whichever recent-games button was standing.
+      state.statsRecent = 0;
+      markStatsRange(null);
       loadStats();
     });
   }
