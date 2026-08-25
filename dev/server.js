@@ -104,11 +104,20 @@ function sendJson(response, status, payload) {
  * @param {{onE2eReport?: (report: any[]) => void}} [options]
  * @returns {import('node:http').Server}
  */
-function createServer(app, options) {
+/**
+ * @param {AppContext|(() => AppContext)} source The loaded Apps Script context,
+ *   or a function returning the current one so that edits can be picked up
+ *   between requests.
+ * @param {{onCall?: Function}} [options]
+ * @returns {http.Server}
+ */
+function createServer(source, options) {
   const opts = options || {};
+  const resolve = () => (typeof source === 'function' ? source() : source);
 
   return http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
+    const app = resolve();
     try {
       if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         const shim = runShim(app.apiNames);

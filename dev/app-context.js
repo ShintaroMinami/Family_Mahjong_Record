@@ -224,8 +224,24 @@ function loadPureFunctions(fileNames, exportNames) {
   );
 }
 
+/**
+ * A value that changes whenever one of the loaded sources changes on disk.
+ *
+ * index.html and its includes are re-read per request, but the .js files are
+ * evaluated into a VM once at startup. Without this the two drift apart after
+ * an edit -- the browser gets new front-end code talking to a stale server.
+ *
+ * @returns {string}
+ */
+function sourcesFingerprint() {
+  return LOAD_ORDER
+    .map((file) => `${file}:${fs.statSync(file).mtimeMs}`)
+    .join('|');
+}
+
 module.exports = {
   createAppContext,
+  sourcesFingerprint,
   seedSampleData,
   renderIndexHtml,
   loadPureFunctions,
