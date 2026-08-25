@@ -76,17 +76,16 @@ function setup() {
 
   if (!storeReadTable('Rules').length) storeAppendRows('Rules', DEFAULT_RULES);
 
+  // Minted here rather than left to the UI so that the app is never reachable
+  // for writing by URL alone, not even for the minutes between deploying and
+  // choosing a passcode.
+  var minted = ensurePasscode_();
+
   var url = spreadsheet.getUrl();
   Logger.log('セットアップ完了: ' + url);
+  if (minted) {
+    Logger.log('パスワードを発行しました: ' + minted);
+    Logger.log('家族に伝えてください。設定タブから覚えやすいものに変更できます。');
+  }
   return url;
-}
-
-/**
- * Returns the data spreadsheet URL, for the admin link in the UI.
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
- * @returns {string}
- */
-function apiGetSpreadsheetUrl(passcode) {
-  requirePasscode_(passcode);
-  return getSpreadsheet_().getUrl();
 }

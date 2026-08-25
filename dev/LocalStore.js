@@ -125,6 +125,3 @@ function setup() {
   if (!storeReadTable('Rules').length) storeAppendRows('Rules', DEFAULT_RULES);
   return LOCAL_DB_PATH;
 }
-
-/** @returns {string} */
-function apiGetSpreadsheetUrl() { return 'file://' + LOCAL_DB_PATH; }

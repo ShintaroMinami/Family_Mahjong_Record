@@ -12,6 +12,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { randomUUID } = require('node:crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
@@ -94,6 +95,10 @@ function createAppContext(options) {
     SpreadsheetApp,
     Logger: { log: (...args) => console.log('[Logger]', ...args) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+    // apiSetPasscode treats a signed-in caller as the owner at the editor. Local
+    // development is single-user and trusted, so it always looks signed in.
+    Session: { getActiveUser: () => ({ getEmail: () => 'local@example.invalid' }) },
+    Utilities: { getUuid: () => randomUUID() },
     __fs: fs,
     __LOCAL_DB_PATH__: dbPath
   });

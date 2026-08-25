@@ -103,6 +103,10 @@ function parseRuleInput_(input) {
  * An explicit `rule` wins, so editing an old game keeps the rule it was recorded
  * under even if the preset has changed in the meantime.
  *
+ * The snapshot may carry its own numbers, but its ruleId still has to name a
+ * real preset: a game pointing at an id that was never in the Rules sheet reads
+ * as a dangling reference everywhere it is later joined.
+ *
  * @param {GameInput} input
  * @returns {RuleConfig}
  */
@@ -110,6 +114,7 @@ function resolveRule_(input) {
   if (input.rule && input.rule.playerCount) {
     var snapshot = parseRuleInput_(
       Object.assign({}, input.rule, { ruleId: input.rule.ruleId || input.ruleId }));
+    if (snapshot.ruleId) repoGetRule(snapshot.ruleId);
     return snapshot;
   }
   return repoGetRule(input.ruleId);
@@ -125,13 +130,21 @@ function parseGameInput_(input) {
   var rule = resolveRule_(input);
   var gameDate = normalizeDateKey(input.gameDate) || todayKey();
 
+  // Results rows are joined back to Players by id on every screen, so an id that
+  // matches no player would show up as a blank name that nothing can repair.
+  /** @type {Record<string, boolean>} */
+  var knownPlayers = {};
+  repoListPlayers(true).forEach(function (player) { knownPlayers[player.playerId] = true; });
+
   var entries = input.entries.map(function (entry) {
     if (!entry.playerId) throw new Error('プレイヤーが選択されていない席があります。');
+    var playerId = String(entry.playerId);
+    if (!knownPlayers[playerId]) throw new Error('プレイヤーが見つかりません: ' + playerId);
     var rawScore = normalizeNumber(entry.rawScore);
     if (rawScore % 100 !== 0) throw new Error('素点は100点単位で入力してください: ' + rawScore);
     return {
       seat: normalizeNumber(entry.seat),
-      playerId: String(entry.playerId),
+      playerId: playerId,
       rawScore: rawScore,
       chips: normalizeNumber(entry.chips)
     };
@@ -255,7 +268,7 @@ function withNames_(stats, nameMap) {
 /**
  * Returns everything the UI needs on startup.
  * @returns {Record<string, any>}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiBootstrap(passcode) {
   requirePasscode_(passcode);
@@ -273,7 +286,7 @@ function apiBootstrap(passcode) {
  * Adds a player.
  * @param {string} name
  * @returns {PlayerRecord}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiAddPlayer(name, passcode) {
   requirePasscode_(passcode);
@@ -284,7 +297,7 @@ function apiAddPlayer(name, passcode) {
  * Computes ranks and balances without saving, for the confirmation screen.
  * @param {GameInput} input
  * @returns {{results: ComputedResult[], warnings: string[]}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiPreviewGame(input, passcode) {
   requirePasscode_(passcode);
@@ -299,7 +312,7 @@ function apiPreviewGame(input, passcode) {
  * Saves one game.
  * @param {GameInput} input
  * @returns {{gameId: string, results: ComputedResult[], warnings: string[]}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiSubmitGame(input, passcode) {
   requirePasscode_(passcode);
@@ -332,7 +345,7 @@ function apiSubmitGame(input, passcode) {
  * @param {string} gameId
  * @param {GameInput} input
  * @returns {{gameId: string, results: ComputedResult[], warnings: string[]}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiUpdateGame(gameId, input, passcode) {
   requirePasscode_(passcode);
@@ -363,7 +376,7 @@ function apiUpdateGame(gameId, input, passcode) {
  * Marks a game as deleted. The rows stay in the sheet so a mistake is recoverable.
  * @param {string} gameId
  * @returns {{gameId: string}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiDeleteGame(gameId, passcode) {
   requirePasscode_(passcode);
@@ -377,7 +390,7 @@ function apiDeleteGame(gameId, passcode) {
  * Returns one day's games plus a per-player summary of that day.
  * @param {string} dateKey 'YYYY-MM-DD'
  * @returns {Record<string, any>}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiGetDaySummary(dateKey, passcode) {
   requirePasscode_(passcode);
@@ -402,7 +415,7 @@ function apiGetDaySummary(dateKey, passcode) {
  * Returns games in a period, newest first.
  * @param {{from?: string, to?: string, limit?: number}} [options]
  * @returns {Record<string, any>}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiGetHistory(options, passcode) {
   requirePasscode_(passcode);
@@ -425,7 +438,7 @@ function apiGetHistory(options, passcode) {
  * Returns aggregated statistics for a period.
  * @param {{from?: string, to?: string, withSeries?: boolean}} [options]
  * @returns {Record<string, any>}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiGetStats(options, passcode) {
   requirePasscode_(passcode);
@@ -458,8 +471,8 @@ function apiGetStats(options, passcode) {
 /**
  * Returns one game in the shape the edit form expects.
  * @param {string} gameId
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  * @returns {Record<string, any>}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
  */
 function apiGetGame(gameId, passcode) {
   requirePasscode_(passcode);
@@ -477,7 +490,7 @@ function apiGetGame(gameId, passcode) {
  * Lists rule presets for the rule editor.
  * @param {boolean} [includeInactive]
  * @returns {(RuleConfig & {active: boolean})[]}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiListRules(includeInactive, passcode) {
   requirePasscode_(passcode);
@@ -491,7 +504,7 @@ function apiListRules(includeInactive, passcode) {
  *
  * @param {Record<string, any>} input Without ruleId a new preset is created.
  * @returns {RuleConfig & {active: boolean}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiSaveRule(input, passcode) {
   requirePasscode_(passcode);
@@ -506,7 +519,7 @@ function apiSaveRule(input, passcode) {
  * @param {string} ruleId
  * @param {boolean} active
  * @returns {RuleConfig & {active: boolean}}
- * @param {string} [passcode] 合言葉。設定されている場合のみ必要。
+ * @param {string} [passcode] パスワード。設定されている場合のみ必要。
  */
 function apiSetRuleActive(ruleId, active, passcode) {
   requirePasscode_(passcode);

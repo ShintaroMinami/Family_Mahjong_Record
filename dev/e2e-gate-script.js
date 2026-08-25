@@ -56,8 +56,8 @@
   function run() {
     try { window.localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore */ }
 
-    return waitFor('合言葉画面', gateShown).then(function () {
-      check('合言葉が設定されていると入力画面が出る', true);
+    return waitFor('パスワード画面', gateShown).then(function () {
+      check('パスワードが設定されていると入力画面が出る', true);
       check('本体のデータは読み込まれていない',
         $$('#day-summary .game-card').length === 0,
         $$('#day-summary .game-card').length);
@@ -68,7 +68,7 @@
         return $('#gate-error').style.display !== 'none' && textOf('#gate-error');
       });
     }).then(function (message) {
-      check('間違った合言葉は弾かれる', /違います/.test(message), message);
+      check('間違ったパスワードは弾かれる', /違います/.test(message), message);
       check('弾かれた後も入力画面のまま', gateShown());
 
       setValue($('#gate-pass'), PASSCODE);
@@ -77,20 +77,22 @@
         return !gateShown() && $$('#seat-grid .seat-row').length === 4;
       });
     }).then(function () {
-      check('正しい合言葉でアプリが開く', true);
+      check('正しいパスワードでアプリが開く', true);
       check('認証後にデータが読み込まれる', $$('#day-summary .game-card').length > 0,
         $$('#day-summary .game-card').length);
 
       var stored = '';
       try { stored = window.localStorage.getItem(STORAGE_KEY) || ''; } catch (error) { /* ignore */ }
-      check('合言葉が端末に記憶される', stored === PASSCODE, stored ? '保存あり' : '保存なし');
+      check('パスワードが端末に記憶される', stored === PASSCODE, stored ? '保存あり' : '保存なし');
 
       // The settings tab should now report the gate as active.
       $('[data-tab="settings"]').click();
       return waitFor('設定タブ', function () { return textOf('#passcode-state'); });
     }).then(function (stateText) {
       check('設定タブに設定済みと表示される', /設定済み/.test(stateText), stateText);
-      check('解除ボタンが表示される', $('#btn-passcode-clear').style.display !== 'none');
+      // Switching the gate off would reopen anonymous writes, so the UI offers
+      // no way to do it; only the Apps Script editor can.
+      check('解除ボタンは存在しない', !$('#btn-passcode-clear'));
     });
   }
 

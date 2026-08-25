@@ -60,7 +60,7 @@
   function handleError(error) {
     var message = errorMessage(error);
     if (message.indexOf('AUTH_REQUIRED') >= 0) {
-      showGate('合言葉が正しくありません。もう一度入力してください。');
+      showGate('パスワードが正しくありません。もう一度入力してください。');
       return;
     }
     toast(message, true);
@@ -610,7 +610,12 @@
       $('btn-cancel-edit').style.display = '';
       $('in-date').value = game.gameDate;
       state.gameRuleSnapshot = game.rule;
-      if (!$('in-rule').querySelector('option[value="' + game.ruleId + '"]')) {
+      // Matched by walking the options rather than building a selector string:
+      // a ruleId containing a quote would otherwise break the selector and throw.
+      var hasOption = Array.prototype.some.call($('in-rule').options, function (opt) {
+        return opt.value === game.ruleId;
+      });
+      if (!hasOption) {
         // The preset was deactivated or renamed; show the game's own rule instead.
         var option = document.createElement('option');
         option.value = game.ruleId;
@@ -737,13 +742,13 @@
 
   function submitGate() {
     var value = $('gate-pass').value;
-    if (!value) { showGate('合言葉を入力してください。'); return; }
+    if (!value) { showGate('パスワードを入力してください。'); return; }
 
     busy(true);
     callPublic('apiVerifyPasscode', value).then(function (result) {
       if (!result.ok) {
         busy(false);
-        showGate('合言葉が違います。');
+        showGate('パスワードが違います。');
         return null;
       }
       rememberPasscode(value);
@@ -757,9 +762,8 @@
 
   function renderPasscodeState(required) {
     $('passcode-state').textContent = required
-      ? '設定済みです。アクセスするには合言葉の入力が必要です。'
-      : '未設定です。URLを知っていれば誰でもアクセスできます。';
-    $('btn-passcode-clear').style.display = required ? '' : 'none';
+      ? '設定済みです。アクセスするにはパスワードの入力が必要です。'
+      : '未設定です。URLを知っていれば誰でも閲覧・登録・削除できます。';
   }
 
   function savePasscode(newValue) {
@@ -768,7 +772,7 @@
       rememberPasscode(newValue);
       $('in-passcode').value = '';
       renderPasscodeState(result.required);
-      toast(newValue ? '合言葉を変更しました' : '合言葉を解除しました');
+      toast('パスワードを変更しました');
     }).catch(handleError).then(function () { busy(false); });
   }
 
@@ -829,12 +833,9 @@
 
     $('btn-passcode-save').addEventListener('click', function () {
       var value = $('in-passcode').value.trim();
-      if (!value) { toast('新しい合言葉を入力してください', true); return; }
+      if (!value) { toast('新しいパスワードを入力してください', true); return; }
+      if (value.length < 6) { toast('パスワードは6文字以上にしてください', true); return; }
       savePasscode(value);
-    });
-    $('btn-passcode-clear').addEventListener('click', function () {
-      if (!window.confirm('合言葉を解除します。URLを知っている人は誰でもアクセスできるようになります。よろしいですか？')) return;
-      savePasscode('');
     });
 
     $('btn-rule-new').addEventListener('click', function () { openRuleEditor(null); });

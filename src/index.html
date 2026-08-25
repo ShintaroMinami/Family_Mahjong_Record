@@ -9,8 +9,8 @@
   <div id="gate">
     <form class="gate-box" id="gate-form">
       <h1>家族麻雀 スコア記録</h1>
-      <p class="hint">合言葉を入力してください。</p>
-      <input type="password" id="gate-pass" autocomplete="current-password" placeholder="合言葉">
+      <p class="hint">パスワードを入力してください。</p>
+      <input type="password" id="gate-pass" autocomplete="current-password" placeholder="パスワード">
       <div class="warn" id="gate-error" style="display:none"></div>
       <button type="submit" class="primary" id="btn-gate">入る</button>
     </form>
@@ -142,20 +142,20 @@
       </div>
 
       <div class="card" id="passcode-card">
-        <h2>合言葉</h2>
+        <h2>パスワード</h2>
         <p class="hint" id="passcode-state"></p>
         <div class="field-row" style="margin-bottom:0">
           <div>
             <input type="password" id="in-passcode" autocomplete="new-password"
-                   placeholder="新しい合言葉（4文字以上）">
+                   maxlength="60" placeholder="新しいパスワード（6文字以上）">
           </div>
           <div style="flex:0 0 90px">
             <button id="btn-passcode-save" style="width:100%">保存</button>
           </div>
         </div>
-        <button id="btn-passcode-clear" style="width:100%;margin-top:8px">合言葉を解除する</button>
         <p class="hint" style="margin:8px 0 0">
           変更すると、他の端末では再入力が必要になります。
+          パスワードなしでは使えません（解除するにはGASエディタでの操作が必要です）。
         </p>
       </div>
 

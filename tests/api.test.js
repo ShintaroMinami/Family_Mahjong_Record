@@ -486,24 +486,35 @@ test('changing the passcode needs the current one', () => {
   assert.deepEqual(app.call('apiVerifyPasscode', 'atarashii'), { ok: true, required: true });
 });
 
-test('clearing the passcode reopens the app', () => {
+test('the gate cannot be switched off through the API', () => {
   const { app } = freshApp();
   app.call('apiSetPasscode', 'kazoku2026');
-  app.call('apiSetPasscode', '', 'kazoku2026');
 
-  assert.equal(app.call('apiAuthStatus').required, false);
-  assert.equal(app.call('apiBootstrap').passcodeRequired, false);
+  // An empty value used to clear the passcode, which reopened anonymous writes
+  // to anyone holding the URL. Turning the gate off is now an editor-only act.
+  assert.throws(() => app.call('apiSetPasscode', '', 'kazoku2026'), /空にできません/);
+  assert.throws(() => app.call('apiSetPasscode', '    ', 'kazoku2026'), /空にできません/);
+  assert.equal(app.call('apiAuthStatus').required, true);
 });
 
 test('a too short passcode is rejected', () => {
   const { app } = freshApp();
-  assert.throws(() => app.call('apiSetPasscode', 'abc'), /4文字以上/);
+  assert.throws(() => app.call('apiSetPasscode', 'abc'), /6文字以上/);
+  assert.throws(() => app.call('apiSetPasscode', 'abcde'), /6文字以上/);
   assert.throws(() => app.call('apiSetPasscode', 'x'.repeat(61)), /60文字以内/);
   assert.equal(app.call('apiAuthStatus').required, false);
 });
 
-test('a passcode of only spaces is treated as clearing it', () => {
+test('setup mints a passcode so a deployed instance is never open', () => {
   const { app } = freshApp();
-  app.call('apiSetPasscode', '    ');
   assert.equal(app.call('apiAuthStatus').required, false);
+
+  const minted = app.call('ensurePasscode_');
+  assert.equal(minted.length, 12);
+  assert.equal(app.call('apiAuthStatus').required, true);
+  assert.deepEqual(app.call('apiVerifyPasscode', minted), { ok: true, required: true });
+
+  // Running it again leaves the existing passcode alone.
+  assert.equal(app.call('ensurePasscode_'), '');
+  assert.deepEqual(app.call('apiVerifyPasscode', minted), { ok: true, required: true });
 });
