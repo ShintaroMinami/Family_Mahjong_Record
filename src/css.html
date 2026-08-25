@@ -246,6 +246,15 @@
     font-weight: 600;
     border-bottom: 1px solid var(--border);
   }
+  th.sortable {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    /* The arrow is appended to the label, so reserve its width up front and the
+       columns stop shifting as the sort moves between them. */
+    padding-right: 16px;
+  }
+  th.sortable.sorted { color: var(--accent); padding-right: 8px; }
   td { border-bottom: 1px solid var(--border); }
   th:first-child, td:first-child { text-align: left; }
   tbody tr:last-child td { border-bottom: none; }

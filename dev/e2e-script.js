@@ -280,6 +280,62 @@
         $$('#stats-body svg polyline').length);
       check('凡例が出る', $$('#stats-body .legend span').length > 0);
 
+      // --- switching what the chart plots ------------------------------------
+      check('既定のグラフは累積収支', chartTitle().indexOf('累積収支') === 0, chartTitle());
+      check('0の基準線が引かれる', $$('#stats-body svg line').length === 1);
+      var byTotalPoints = polylinePoints();
+
+      click($('#stats-body button[data-metric="avgRank"]'));
+      check('平順のグラフに切り替わる', chartTitle().indexOf('平均着順') === 0, chartTitle());
+      check('線の形が変わる', polylinePoints() !== byTotalPoints);
+      check('平順では0の基準線を引かない', $$('#stats-body svg line').length === 0);
+      check('平順は上が良い順位になる', axisLabels()[0] < axisLabels()[1],
+        axisLabels().join(' / '));
+
+      click($('#stats-body button[data-metric="chips"]'));
+      check('チップのグラフに切り替わる', chartTitle().indexOf('チップ') === 0, chartTitle());
+
+      click($('#stats-body button[data-metric="totalPt"]'));
+      check('累積収支に戻せる', polylinePoints() === byTotalPoints, chartTitle());
+      check('選択中のグラフに印が付く',
+        $('#stats-body button[data-metric="totalPt"]').className.indexOf('active') >= 0);
+
+      // --- sorting the statistics tables ------------------------------------
+      check('既定は連対率の降順', sortedOn('連対率', 1) === '▼', sortedOn('連対率', 1));
+      var byDefault = names();
+      check('連対率が高い順に並ぶ',
+        descending(column('連対率', 1)), column('連対率', 1).join(' '));
+
+      click(header('平順'));
+      check('平順は昇順から始まる', sortedOn('平順') === '▲', sortedOn('平順'));
+      check('平順が小さい順に並ぶ', ascending(column('平順')), column('平順').join(' '));
+      check('連対率の印が消える', sortedOn('連対率', 1) === '', sortedOn('連対率', 1));
+      check('詳細テーブルも同じ順になる',
+        names(1).join() === names(0).join(), names(0).join() + ' / ' + names(1).join());
+
+      click(header('平順'));
+      check('もう一度押すと降順になる', sortedOn('平順') === '▼', sortedOn('平順'));
+      check('平順が大きい順に並ぶ', descending(column('平順')), column('平順').join(' '));
+
+      check('名前の見出しは並べ替えの対象外', !header('名前').getAttribute('data-sort'));
+
+      var detailHeads = headers(1).map(function (th) {
+        return th.textContent.replace(/[▼▲]/g, '').trim();
+      });
+      check('詳細は5項目を並べる',
+        detailHeads.join(',') === '名前,連対率,トップ率,ラス率,トビ率,平均素点',
+        detailHeads.join(','));
+
+      click(header('トビ率', 1));
+      check('詳細の見出しでも並べ替えられる',
+        descending(column('トビ率', 1)), column('トビ率', 1).join(' '));
+
+      click(header('合計'));
+      check('合計でも並べ替えられる', descending(column('合計')), column('合計').join(' '));
+
+      click(header('連対率', 1));
+      check('既定の並びに戻せる', names().join() === byDefault.join(), names().join(' '));
+
       // --- add player -------------------------------------------------------
       click($('[data-tab="entry"]'));
       var before = $('#seat-grid .in-player').options.length;
@@ -410,6 +466,88 @@
       nav.style.width = original;
       check('320px幅の端末でもタブ名が切れない', narrow.length === 0, narrow.join(', '));
     });
+  }
+
+  // --- statistics chart helpers ---
+
+  /** @returns {string} The chart card's heading. */
+  function chartTitle() {
+    var svg = $('#stats-body svg.chart');
+    return svg ? svg.closest('.card').querySelector('h2').textContent : '';
+  }
+
+  /** @returns {string} Every plotted line's points, joined, for comparison. */
+  function polylinePoints() {
+    return $$('#stats-body svg polyline').map(function (line) {
+      return line.getAttribute('points');
+    }).join('|');
+  }
+
+  /** @returns {number[]} The two axis labels, top one first. */
+  function axisLabels() {
+    return $$('#stats-body svg text')
+      .sort(function (a, b) { return Number(a.getAttribute('y')) - Number(b.getAttribute('y')); })
+      .map(function (text) { return parseFloat(text.textContent); });
+  }
+
+  // --- statistics table helpers ---
+
+  /**
+   * The statistics tab draws two tables. Everything below takes an optional
+   * index so a column is always looked up within one of them -- counting header
+   * cells across both would point at the wrong cell in the body.
+   *
+   * @param {number} [table] 0 for the totals, 1 for the detail table.
+   * @returns {?HTMLElement}
+   */
+  function statsTable(table) {
+    return $$('#stats-body table')[table || 0];
+  }
+
+  /** @param {number} [table] @returns {HTMLElement[]} That table's header cells. */
+  function headers(table) {
+    var target = statsTable(table);
+    return target ? Array.prototype.slice.call(target.querySelectorAll('th')) : [];
+  }
+
+  /** @param {string} label @param {number} [table] @returns {?HTMLElement} */
+  function header(label, table) {
+    return headers(table).filter(function (th) {
+      return th.textContent.indexOf(label) === 0;
+    })[0];
+  }
+
+  /** @returns {string} '▼', '▲' or '' when the column is not sorted on. */
+  function sortedOn(label, table) {
+    var th = header(label, table);
+    if (!th) return 'missing:' + label;
+    var arrow = th.textContent.replace(label, '').trim();
+    return th.className.indexOf('sorted') >= 0 ? arrow : '';
+  }
+
+  /** @param {number} [table] @returns {string[]} The name column, in order. */
+  function names(table) {
+    var target = statsTable(table);
+    if (!target) return [];
+    return Array.prototype.map.call(
+      target.querySelectorAll('tbody tr td:first-child'),
+      function (td) { return td.textContent; });
+  }
+
+  /** @returns {number[]} That column's values, in row order. */
+  function column(label, table) {
+    var index = headers(table).indexOf(header(label, table));
+    return Array.prototype.map.call(
+      statsTable(table).querySelectorAll('tbody tr'),
+      function (tr) { return parseFloat(tr.cells[index].textContent.replace(/[^0-9.+-]/g, '')); });
+  }
+
+  function ascending(values) {
+    return values.every(function (v, i) { return i === 0 || values[i - 1] <= v; });
+  }
+
+  function descending(values) {
+    return values.every(function (v, i) { return i === 0 || values[i - 1] >= v; });
   }
 
   /** @returns {string[]} Labels of tabs whose content does not fit their cell. */

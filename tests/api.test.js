@@ -224,12 +224,21 @@ test('statistics stay zero-sum and expose a cumulative series', () => {
   assert.equal(stats.players.length, 4);
   assert.equal(Math.round(stats.players.reduce((sum, p) => sum + p.totalPt, 0) * 100) / 100, 0);
   assert.equal(stats.seriesLabels.length, 6);
-  Object.values(stats.series).forEach((line) => assert.equal(line.length, 6));
+  assert.deepEqual(Object.keys(stats.series).sort(), ['avgPt', 'avgRank', 'chips', 'totalPt']);
+  Object.values(stats.series).forEach((metric) =>
+    Object.values(metric).forEach((line) => assert.equal(line.length, 6)));
 
-  // The series is ordered oldest first, so the last value is the running total.
+  // Each series is ordered oldest first, so its last value is where the player
+  // ended up -- which is what the table shows.
   stats.players.forEach((player) => {
-    const line = stats.series[player.playerId];
-    assert.equal(line[line.length - 1], player.totalPt);
+    const last = (metric) => {
+      const line = stats.series[metric][player.playerId];
+      return line[line.length - 1];
+    };
+    assert.equal(last('totalPt'), player.totalPt);
+    assert.equal(last('avgPt'), player.avgPt);
+    assert.equal(last('avgRank'), player.avgRank);
+    assert.equal(last('chips'), player.chips);
   });
 });
 

@@ -462,7 +462,7 @@ function apiGetStats(options, passcode) {
   };
   if (opts.withSeries) {
     var ordered = games.slice().reverse().map(function (game) { return game.gameId; });
-    response.series = buildCumulativeSeries(results, ordered);
+    response.series = buildSeries(results, ordered);
     response.seriesLabels = ordered;
   }
   return response;

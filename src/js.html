@@ -19,6 +19,11 @@
     editingRuleId: null,
     editingRuleActive: true,
     lastPreview: null,
+    // The last statistics payload, kept so that re-sorting the tables does not
+    // have to go back to the server, and the column they are sorted on.
+    stats: null,
+    statsSort: { key: 'top2Rate', dir: -1 },
+    chartMetric: 'totalPt',
     // The shared passcode, remembered per browser. Empty when the gate is off.
     passcode: ''
   };
@@ -107,7 +112,16 @@
 
   function ptClass(value) { return value > 0 ? 'pt-plus' : (value < 0 ? 'pt-minus' : ''); }
 
-  function fmtPct(rate) { return (rate * 100).toFixed(1) + '%'; }
+  /**
+   * A rate as a percentage, or '-' when there is no number to show.
+   *
+   * A missing field used to render as 'NaN%', which reads as a calculation gone
+   * wrong rather than as a value the server did not send. Zero is a real rate,
+   * so only non-numbers fall through to the dash.
+   */
+  function fmtPct(rate) {
+    return typeof rate === 'number' && !isNaN(rate) ? (rate * 100).toFixed(1) + '%' : '-';
+  }
 
   function errorMessage(error) {
     return (error && error.message) ? error.message : String(error);
@@ -276,15 +290,58 @@
 
   // ---------------------------------------------------------------- rendering
 
+  /**
+   * Columns of the player table. A null key is a column with no sort: the rank
+   * distribution is four numbers rather than one value, and names would sort by
+   * Unicode order, which for kanji is neither 五十音 nor anything a reader would
+   * predict.
+   */
+  var PLAYER_COLUMNS = [
+    { label: '名前', key: null },
+    { label: '局数', key: 'games' },
+    { label: '合計', key: 'totalPt' },
+    { label: '平均', key: 'avgPt' },
+    { label: '平順', key: 'avgRank' },
+    { label: '着順分布', key: null, ranks: true },
+    { label: '飛び', key: 'tobiCount' },
+    { label: 'チップ', key: 'chips' }
+  ];
+
+  var DETAIL_COLUMNS = [
+    { label: '名前', key: null },
+    { label: '連対率', key: 'top2Rate' },
+    { label: 'トップ率', key: 'topRate' },
+    { label: 'ラス率', key: 'lastRate' },
+    { label: 'トビ率', key: 'tobiRate' },
+    { label: '平均素点', key: 'avgRawScore' }
+  ];
+
+  /**
+   * Builds a header row, marking the column currently sorted on.
+   *
+   * @param {{label: string, key: ?string}[]} columns
+   * @param {?{key: string, dir: number}} sort Omitted where the table is fixed.
+   * @returns {string}
+   */
+  function tableHead(columns, sort) {
+    return '<thead><tr>' + columns.map(function (column) {
+      if (!column.key || !sort) return '<th>' + column.label + '</th>';
+      var active = sort.key === column.key;
+      return '<th class="sortable' + (active ? ' sorted' : '') +
+        '" data-sort="' + column.key + '">' + column.label +
+        (active ? (sort.dir < 0 ? ' ▼' : ' ▲') : '') + '</th>';
+    }).join('') + '</tr></thead>';
+  }
+
   function playerTable(players, options) {
     if (!players.length) return '<div class="empty">データがありません</div>';
     var showRanks = !options || options.showRanks !== false;
     var maxRank = players.reduce(function (max, p) {
       return Math.max(max, p.rankCounts.length);
     }, 0);
-    var html = '<div class="table-wrap"><table><thead><tr><th>名前</th><th>局数</th><th>合計</th><th>平均</th><th>平順</th>';
-    if (showRanks) html += '<th>着順分布</th>';
-    html += '<th>飛び</th><th>チップ</th></tr></thead><tbody>';
+    var columns = PLAYER_COLUMNS.filter(function (c) { return showRanks || !c.ranks; });
+    var html = '<div class="table-wrap"><table>' +
+      tableHead(columns, options && options.sort) + '<tbody>';
     players.forEach(function (row) {
       html += '<tr><td>' + escapeHtml(row.name) + '</td>' +
         '<td>' + row.games + '</td>' +
@@ -356,17 +413,45 @@
   /**
    * Draws cumulative point lines. Hand-rolled SVG keeps the app dependency free.
    */
+  /**
+   * What the chart can plot.
+   *
+   * `baseline` marks the metrics where zero is a meaningful reference: the axis
+   * is stretched to include it and a dashed line is drawn there. An average
+   * placing never approaches zero, so doing that would waste most of the chart.
+   *
+   * `invert` puts smaller values at the top, which is the only way a placing
+   * chart reads correctly -- 1st place belongs above 4th.
+   */
+  var CHART_METRICS = [
+    { id: 'totalPt', label: '合計', title: '累積収支の推移', decimals: 1, baseline: true },
+    { id: 'avgPt', label: '平均', title: '平均収支の推移', decimals: 1, baseline: true },
+    { id: 'avgRank', label: '平順', title: '平均着順の推移', decimals: 2, invert: true },
+    { id: 'chips', label: 'チップ', title: 'チップ収支の推移', decimals: 0, baseline: true }
+  ];
+
+  function chartMetric() {
+    return CHART_METRICS.filter(function (metric) {
+      return metric.id === state.chartMetric;
+    })[0] || CHART_METRICS[0];
+  }
+
   function renderChart(stats) {
+    var metric = chartMetric();
     var labels = stats.seriesLabels || [];
-    var series = stats.series || {};
-    var playerIds = Object.keys(series);
+    var lines = (stats.series || {})[metric.id] || {};
+    var playerIds = Object.keys(lines);
     if (!labels.length || !playerIds.length) return '';
 
     var width = 640, height = 220, padLeft = 38, padBottom = 18, padTop = 10, padRight = 8;
-    var values = [];
-    playerIds.forEach(function (id) { values = values.concat(series[id]); });
-    var max = Math.max.apply(null, values.concat([0]));
-    var min = Math.min.apply(null, values.concat([0]));
+    var values = metric.baseline ? [0] : [];
+    playerIds.forEach(function (id) {
+      lines[id].forEach(function (value) { if (value !== null) values.push(value); });
+    });
+    if (!values.length) return '';
+
+    var max = Math.max.apply(null, values);
+    var min = Math.min.apply(null, values);
     if (max === min) { max += 1; min -= 1; }
     var span = max - min;
 
@@ -375,46 +460,95 @@
         i * (width - padLeft - padRight) / (labels.length - 1));
     };
     var y = function (value) {
-      return padTop + (max - value) * (height - padTop - padBottom) / span;
+      var fromBottom = (value - min) / span;
+      var fromTop = metric.invert ? fromBottom : 1 - fromBottom;
+      return padTop + fromTop * (height - padTop - padBottom);
     };
+    var axisLabel = function (value) { return value.toFixed(metric.decimals); };
 
     // Keep the aspect ratio: stretching the viewBox would distort the stroke
     // widths and the axis labels.
     var svg = '<svg class="chart" viewBox="0 0 ' + width + ' ' + height + '">';
-    svg += '<line x1="' + padLeft + '" y1="' + y(0) + '" x2="' + (width - padRight) +
-      '" y2="' + y(0) + '" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 3"/>';
+    if (metric.baseline) {
+      svg += '<line x1="' + padLeft + '" y1="' + y(0) + '" x2="' + (width - padRight) +
+        '" y2="' + y(0) + '" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="3 3"/>';
+    }
     svg += '<text x="2" y="' + (y(max) + 4) + '" font-size="10" fill="currentColor" opacity=".6">' +
-      Math.round(max) + '</text>';
+      axisLabel(max) + '</text>';
     svg += '<text x="2" y="' + (y(min) + 4) + '" font-size="10" fill="currentColor" opacity=".6">' +
-      Math.round(min) + '</text>';
+      axisLabel(min) + '</text>';
 
     var nameOf = {};
     stats.players.forEach(function (p) { nameOf[p.playerId] = p.name; });
     var legend = [];
     playerIds.forEach(function (playerId, index) {
       var color = SERIES_COLORS[index % SERIES_COLORS.length];
-      var points = series[playerId].map(function (value, i) { return x(i) + ',' + y(value); }).join(' ');
+      // Nulls only ever lead a line -- they mark the games before a player
+      // joined -- so dropping them shortens the line rather than breaking it.
+      var points = lines[playerId].map(function (value, i) {
+        return value === null ? '' : x(i) + ',' + y(value);
+      }).filter(Boolean).join(' ');
       svg += '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + points + '"/>';
       legend.push('<span><i style="background:' + color + '"></i>' +
         escapeHtml(nameOf[playerId] || playerId) + '</span>');
     });
     svg += '</svg>';
-    return '<div class="card"><h2>累積収支の推移</h2>' + svg +
+
+    var picker = '<div class="btn-row" style="margin-bottom:10px">' +
+      CHART_METRICS.map(function (option) {
+        return '<button type="button" class="choice' +
+          (option.id === metric.id ? ' active' : '') +
+          '" data-metric="' + option.id + '">' + option.label + '</button>';
+      }).join('') + '</div>';
+
+    return '<div class="card"><h2>' + metric.title + '</h2>' + picker + svg +
       '<div class="legend">' + legend.join('') + '</div></div>';
   }
 
+  /**
+   * Which way a column reads best the first time it is picked.
+   *
+   * Bigger is better everywhere except the average placing, where 1st is the
+   * best you can do.
+   *
+   * @param {string} key
+   * @returns {number} 1 ascending, -1 descending.
+   */
+  function defaultSortDir(key) {
+    return key === 'avgRank' ? 1 : -1;
+  }
+
+  /**
+   * @param {Record<string, any>[]} players
+   * @param {{key: string, dir: number}} sort
+   * @returns {Record<string, any>[]} A sorted copy; the input is left alone so
+   *   that re-sorting always starts from the server's rows.
+   */
+  function sortPlayers(players, sort) {
+    return players.slice().sort(function (a, b) {
+      var diff = ((a[sort.key] || 0) - (b[sort.key] || 0)) * sort.dir;
+      // Ties fall back to total points, so equal rows keep a stable order.
+      return diff || b.totalPt - a.totalPt;
+    });
+  }
+
   function renderStats(stats) {
+    var sort = state.statsSort;
+    var players = sortPlayers(stats.players, sort);
     var period = (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
     var html = '<div class="card"><h2>' + escapeHtml(period) + '（' + stats.gameCount + '半荘）</h2>' +
-      playerTable(stats.players) + '</div>';
+      '<p class="hint">見出しをタップすると並べ替えられます。</p>' +
+      playerTable(players, { sort: sort }) + '</div>';
     html += renderChart(stats);
-    if (stats.players.length) {
-      html += '<div class="card"><h2>詳細</h2><div class="table-wrap"><table><thead><tr>' +
-        '<th>名前</th><th>トップ率</th><th>ラス率</th><th>平均素点</th></tr></thead><tbody>' +
-        stats.players.map(function (row) {
+    if (players.length) {
+      html += '<div class="card"><h2>詳細</h2><div class="table-wrap"><table>' +
+        tableHead(DETAIL_COLUMNS, sort) + '<tbody>' +
+        players.map(function (row) {
           return '<tr><td>' + escapeHtml(row.name) + '</td>' +
+            '<td>' + fmtPct(row.top2Rate) + '</td>' +
             '<td>' + fmtPct(row.topRate) + '</td>' +
             '<td>' + fmtPct(row.lastRate) + '</td>' +
+            '<td>' + fmtPct(row.tobiRate) + '</td>' +
             '<td>' + row.avgRawScore.toLocaleString() + '</td></tr>';
         }).join('') + '</tbody></table></div></div>';
     }
@@ -689,7 +823,7 @@
   function loadStats() {
     busy(true);
     return call('apiGetStats', { from: $('stats-from').value, to: $('stats-to').value, withSeries: true })
-      .then(function (stats) { renderStats(stats); })
+      .then(function (stats) { state.stats = stats; renderStats(stats); })
       .catch(function (error) { handleError(error); })
       .then(function () { busy(false); });
   }
@@ -934,6 +1068,25 @@
       $('hist-to').value = '';
       loadHistory();
     });
+    $('stats-body').addEventListener('click', function (event) {
+      if (!state.stats) return;
+
+      var metric = event.target.closest('button[data-metric]');
+      if (metric) {
+        state.chartMetric = metric.getAttribute('data-metric');
+        renderStats(state.stats);
+        return;
+      }
+
+      var header = event.target.closest('th[data-sort]');
+      if (!header) return;
+      var key = header.getAttribute('data-sort');
+      state.statsSort = state.statsSort.key === key
+        ? { key: key, dir: -state.statsSort.dir }
+        : { key: key, dir: defaultSortDir(key) };
+      renderStats(state.stats);
+    });
+
     $('btn-stats-load').addEventListener('click', loadStats);
     $('btn-stats-all').addEventListener('click', function () {
       $('stats-from').value = '';

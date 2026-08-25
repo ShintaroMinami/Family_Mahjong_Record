@@ -81,43 +81,68 @@ function aggregatePlayerStats(results, playerCountByGame) {
       rankCounts: stats.rankCounts,
       avgRawScore: Math.round(stats._scoreSum / games),
       topRate: round(stats.topRate / games, 3),
+      // 連対 is 1st or 2nd, in three-player games as well as four.
+      top2Rate: round((stats.rankCounts[0] + stats.rankCounts[1]) / games, 3),
       lastRate: round(stats.lastRate / games, 3),
+      tobiRate: round(stats.tobiCount / games, 3),
       tobiCount: stats.tobiCount,
       chips: stats.chips
     };
   }).sort(function (a, b) { return b.totalPt - a.totalPt; });
 }
 
+/** Metrics the statistics chart can plot, in the order they are offered. */
+var SERIES_METRICS = ['totalPt', 'avgPt', 'avgRank', 'chips'];
+
 /**
- * Builds a running point total per player, ordered by game.
+ * Builds one line per player per metric, ordered by game.
  *
- * Used by the chart on the statistics tab.
+ * Used by the chart on the statistics tab. A player who sat a game out keeps
+ * the value they had, so their line stays flat rather than dropping out.
+ *
+ * Totals and chips read 0 before a player's first game, which is true of them:
+ * everyone starts at zero. The averages read null instead -- an average rank of
+ * 0 is not a thing, and plotting it would drag the axis somewhere meaningless.
  *
  * @param {Record<string, any>[]} results Result rows.
  * @param {string[]} gameIdsInOrder Game ids, oldest first.
- * @returns {Record<string, number[]>} Cumulative totals keyed by playerId; the
- *   value carries over unchanged for games the player sat out.
+ * @returns {Record<string, Record<string, (number|null)[]>>} Metric, then
+ *   playerId, then one value per game.
  */
-function buildCumulativeSeries(results, gameIdsInOrder) {
-  /** @type {Record<string, Record<string, number>>} */
+function buildSeries(results, gameIdsInOrder) {
+  /** @type {Record<string, Record<string, Record<string, any>>>} */
   var byGame = {};
-  results.forEach(function (row) {
-    if (!byGame[row.gameId]) byGame[row.gameId] = {};
-    byGame[row.gameId][row.playerId] = row.totalPt;
-  });
-
   /** @type {Record<string, boolean>} */
   var playerIds = {};
-  results.forEach(function (row) { playerIds[row.playerId] = true; });
+  results.forEach(function (row) {
+    if (!byGame[row.gameId]) byGame[row.gameId] = {};
+    byGame[row.gameId][row.playerId] = row;
+    playerIds[row.playerId] = true;
+  });
 
-  /** @type {Record<string, number[]>} */
+  /** @type {Record<string, Record<string, (number|null)[]>>} */
   var series = {};
+  SERIES_METRICS.forEach(function (metric) { series[metric] = {}; });
+
   Object.keys(playerIds).forEach(function (playerId) {
-    var running = 0;
-    series[playerId] = gameIdsInOrder.map(function (gameId) {
-      var delta = byGame[gameId] && byGame[gameId][playerId];
-      if (typeof delta === 'number') running = round(running + delta, 1);
-      return running;
+    var totalPt = 0;
+    var chips = 0;
+    var rankSum = 0;
+    var games = 0;
+    SERIES_METRICS.forEach(function (metric) { series[metric][playerId] = []; });
+
+    gameIdsInOrder.forEach(function (gameId) {
+      var row = byGame[gameId] && byGame[gameId][playerId];
+      if (row) {
+        games++;
+        totalPt = round(totalPt + row.totalPt, 1);
+        chips += row.chips;
+        rankSum += row.rank;
+      }
+      series.totalPt[playerId].push(totalPt);
+      series.chips[playerId].push(chips);
+      series.avgPt[playerId].push(games ? round(totalPt / games, 2) : null);
+      series.avgRank[playerId].push(games ? round(rankSum / games, 2) : null);
     });
   });
   return series;

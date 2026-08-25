@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadPureFunctions } = require('../dev/app-context');
 
-const { aggregatePlayerStats, buildCumulativeSeries } =
-  loadPureFunctions(['Stats.js'], ['aggregatePlayerStats', 'buildCumulativeSeries']);
+const { aggregatePlayerStats, buildSeries } =
+  loadPureFunctions(['Stats.js'], ['aggregatePlayerStats', 'buildSeries']);
 
 const row = (gameId, playerId, rank, totalPt, extra) =>
   Object.assign({ gameId, playerId, rank, totalPt, rawScore: 25000, chips: 0, tobi: false }, extra);
@@ -63,6 +63,35 @@ test('counts bankruptcies and nets chips', () => {
   assert.equal(p2.chips, -2);
 });
 
+test('rates are counted per game played', () => {
+  const results = [
+    row('G1', 'P1', 1, 50),
+    row('G1', 'P2', 2, 10),
+    row('G1', 'P3', 3, -20),
+    row('G1', 'P4', 4, -40, { tobi: true }),
+    row('G2', 'P1', 2, 10),
+    row('G2', 'P2', 1, 50),
+    row('G2', 'P3', 4, -40, { tobi: true }),
+    row('G2', 'P4', 3, -20)
+  ];
+  const seats = { G1: 4, G2: 4 };
+  const by = {};
+  aggregatePlayerStats(results, seats).forEach((p) => { by[p.playerId] = p; });
+
+  // 連対 is 1st or 2nd: P1 took both, P3 neither.
+  assert.equal(by.P1.top2Rate, 1);
+  assert.equal(by.P1.topRate, 0.5);
+  assert.equal(by.P1.lastRate, 0);
+  assert.equal(by.P3.top2Rate, 0);
+  assert.equal(by.P3.lastRate, 0.5);
+
+  // Bankruptcy is a rate as well as a count, so it can be compared across
+  // players who have played different numbers of games.
+  assert.equal(by.P4.tobiCount, 1);
+  assert.equal(by.P4.tobiRate, 0.5);
+  assert.equal(by.P1.tobiRate, 0);
+});
+
 test('cumulative series carries the total across games a player sat out', () => {
   const results = [
     row('G1', 'P1', 1, 10),
@@ -70,9 +99,42 @@ test('cumulative series carries the total across games a player sat out', () => 
     row('G2', 'P1', 2, -5),
     row('G2', 'P3', 1, 5)
   ];
-  const series = buildCumulativeSeries(results, ['G1', 'G2']);
+  const series = buildSeries(results, ['G1', 'G2']).totalPt;
 
   assert.deepEqual(series.P1, [10, 5]);
   assert.deepEqual(series.P2, [-10, -10]); // sat out G2, value carries over
   assert.deepEqual(series.P3, [0, 5]);     // joined at G2, starts flat at zero
+});
+
+test('running averages start at a player\'s first game, not at zero', () => {
+  const results = [
+    row('G1', 'P1', 1, 10),
+    row('G1', 'P2', 2, -10),
+    row('G2', 'P1', 2, -5),
+    row('G2', 'P3', 1, 5)
+  ];
+  const series = buildSeries(results, ['G1', 'G2']);
+
+  // An average of 0 is not a value either metric can take, so before the first
+  // game there is nothing to plot.
+  assert.deepEqual(series.avgPt.P3, [null, 5]);
+  assert.deepEqual(series.avgRank.P3, [null, 1]);
+
+  assert.deepEqual(series.avgPt.P1, [10, 2.5]);
+  assert.deepEqual(series.avgRank.P1, [1, 1.5]);
+  assert.deepEqual(series.avgRank.P2, [2, 2]); // sat out G2, average unchanged
+});
+
+test('chips accumulate alongside points', () => {
+  const results = [
+    row('G1', 'P1', 1, 10, { chips: 3 }),
+    row('G1', 'P2', 2, -10, { chips: -3 }),
+    row('G2', 'P1', 2, -5, { chips: -1 }),
+    row('G2', 'P3', 1, 5, { chips: 1 })
+  ];
+  const series = buildSeries(results, ['G1', 'G2']).chips;
+
+  assert.deepEqual(series.P1, [3, 2]);
+  assert.deepEqual(series.P2, [-3, -3]);
+  assert.deepEqual(series.P3, [0, 1]);
 });
