@@ -10,7 +10,7 @@
 function doGet(e) {
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
-    .setTitle('家族麻雀 スコア記録')
+    .setTitle(APP_TITLE)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
@@ -63,7 +63,7 @@ function setup() {
   if (id) {
     spreadsheet = SpreadsheetApp.openById(id);
   } else {
-    spreadsheet = SpreadsheetApp.create('家族麻雀 スコア記録データ');
+    spreadsheet = SpreadsheetApp.create(APP_TITLE + ' データ');
     spreadsheet.setSpreadsheetTimeZone('Asia/Tokyo');
     properties.setProperty(SPREADSHEET_ID_KEY, spreadsheet.getId());
   }
@@ -83,9 +83,18 @@ function setup() {
 
   var url = spreadsheet.getUrl();
   Logger.log('セットアップ完了: ' + url);
+  Logger.log('');
+  Logger.log('--- 次にやること ---');
   if (minted) {
-    Logger.log('パスワードを発行しました: ' + minted);
-    Logger.log('家族に伝えてください。設定タブから覚えやすいものに変更できます。');
+    Logger.log('1. パスワードを発行しました: ' + minted);
+    Logger.log('   このままでも使えますが、設定タブで覚えやすいものに変更してください。');
+    Logger.log('   家族に伝えるまでURLだけでは誰も入れません。');
+  } else {
+    Logger.log('1. パスワードは設定済みです。忘れた場合はスクリプトプロパティ');
+    Logger.log('   PASSCODE を削除してから setup() をやり直してください。');
   }
+  Logger.log('2. タイトルは「' + APP_TITLE + '」です。');
+  Logger.log('   変えるなら src/Config.js の APP_TITLE を編集して npm run deploy。');
+  Logger.log('   タブ・画面見出し・このスプレッドシート名がまとめて変わります。');
   return url;
 }

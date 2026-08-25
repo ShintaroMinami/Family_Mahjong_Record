@@ -19,6 +19,7 @@ const SRC = path.join(ROOT, 'src');
 
 /** Evaluation order. LocalStore.js is last so its definitions win over Store.js. */
 const LOAD_ORDER = [
+  path.join(SRC, 'Config.js'),
   path.join(SRC, 'Schema.js'),
   path.join(SRC, 'Domain.js'),
   path.join(SRC, 'Stats.js'),
@@ -183,10 +184,13 @@ function seedSampleData(app, options) {
  */
 function renderIndexHtml(extraHead) {
   const template = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
-  const resolved = template.replace(
-    /<\?!?=?\s*include\(\s*'([\w-]+)'\s*\)\s*;?\s*\?>/g,
-    (_match, name) => fs.readFileSync(path.join(SRC, `${name}.html`), 'utf8')
-  );
+  const { APP_TITLE } = loadPureFunctions(['Config.js'], ['APP_TITLE']);
+  const resolved = template
+    .replace(
+      /<\?!?=?\s*include\(\s*'([\w-]+)'\s*\)\s*;?\s*\?>/g,
+      (_match, name) => fs.readFileSync(path.join(SRC, `${name}.html`), 'utf8')
+    )
+    .replace(/<\?!?=\s*APP_TITLE\s*;?\s*\?>/g, () => APP_TITLE);
   // A replacement function, not a string: in a replacement string `$$` collapses
   // to `$`, which silently mangles injected JavaScript.
   return extraHead ? resolved.replace('</head>', () => `${extraHead}\n</head>`) : resolved;
@@ -204,8 +208,8 @@ function renderIndexHtml(extraHead) {
  * Only files without any GAS dependency may be loaded this way.
  *
  * @param {string[]} fileNames    File names inside src/, evaluated in order.
- * @param {string[]} exportNames  Function names to hand back.
- * @returns {Record<string, Function>}
+ * @param {string[]} exportNames  Names to hand back; constants as well as functions.
+ * @returns {Record<string, any>}
  */
 function loadPureFunctions(fileNames, exportNames) {
   const code = fileNames

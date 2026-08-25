@@ -12,7 +12,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createAppContext, seedSampleData, renderIndexHtml } = require('../dev/app-context');
+const {
+  createAppContext, seedSampleData, renderIndexHtml, loadPureFunctions
+} = require('../dev/app-context');
 
 /** Builds an isolated app instance with an empty database. */
 function freshApp() {
@@ -246,6 +248,15 @@ test('index.html resolves its includes and leaves no template tags', () => {
   assert.ok(html.includes('<style>'), 'css.html should be inlined');
   assert.ok(html.includes('google.script.run'), 'js.html should be inlined');
   assert.ok(!html.includes('<?'), 'no unresolved template tag should remain');
+});
+
+test('both headings come from APP_TITLE', () => {
+  // The title used to be typed out in three places, so changing it meant finding
+  // all of them. Config.js is now the only copy; this keeps it that way.
+  const { APP_TITLE } = loadPureFunctions(['Config.js'], ['APP_TITLE']);
+  const headings = renderIndexHtml().match(/<h1>([^<]*)<\/h1>/g) || [];
+  assert.equal(headings.length, 2);
+  headings.forEach((heading) => assert.equal(heading, `<h1>${APP_TITLE}</h1>`));
 });
 
 test('every function the UI calls exists on the server', () => {
