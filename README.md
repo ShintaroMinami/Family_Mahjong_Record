@@ -44,6 +44,7 @@ dev/          ローカル開発用（デプロイされない）
   LocalStore.js    Store.js のローカル版（JSONファイル）
   server.js        HTTP層
   deploy.js        push とデプロイ更新をまとめて実行
+  calibrate-seed.js   サンプルデータの実力差・分散を実測する
   e2e-script.js       ブラウザ内E2Eシナリオ
   e2e-gate-script.js  パスワード画面のE2Eシナリオ
 tests/        テスト
@@ -63,7 +64,24 @@ npm run dev:reset    # サンプルデータ付きで起動（既存のローカ
 |---|---|
 | `npm run dev` | 現在のローカルDBのまま起動 |
 | `npm run dev:seed` | データが空ならサンプルを投入して起動 |
-| `npm run dev:reset` | ローカルDBを作り直してサンプルを投入 |
+| `npm run dev:reset` | ローカルDBを作り直してサンプルを投入（6局） |
+| `npm run dev:bulk` | 5人・四麻200局＋三麻100局。統計やグラフの見え方を確かめる用 |
+
+局数は `--games4` / `--games3` で指定する
+（`npm run dev -- --reset --seed --games4 50 --games3 20`）。どちらも指定しなければ
+固定の6局になる。乱数は固定シードなので、同じ指定なら毎回同じデータになる。
+
+生成データには**実力差が付けてある**。強い順に 妹・祖父・父・母・兄。
+四人麻雀での狙いは次のとおりで、`node dev/calibrate-seed.js` で実測できる。
+
+| 項目 | 値 |
+|---|---|
+| 平均順位 | 最強 2.20 → 最弱 2.80（間は等間隔） |
+| 素点の標準偏差 | 約16,900点 |
+| トビ率 | 約7% |
+
+素点の散らばりとトビ率は実際の半荘の統計に近い値に合わせてある。実力差の刻みは
+`SKILL_STEP`、順位は `SKILL_ORDER`（ともに `dev/app-context.js`）。
 
 ローカルDBは `dev/data/db.json`（Git管理外）。スプレッドシートの行をそのまま
 配列で持つので、本番と同じ読み書き経路を通る。

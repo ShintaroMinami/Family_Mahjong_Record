@@ -41,7 +41,10 @@ const currentApp = () => {
 };
 
 if (hasFlag('--seed')) {
-  const inserted = seedSampleData(app);
+  const inserted = seedSampleData(app, {
+    fourPlayer: Number(flagValue('--games4', 0)),
+    threePlayer: Number(flagValue('--games3', 0))
+  });
   console.log(inserted
     ? `サンプルデータを投入しました（${inserted}半荘）`
     : '既にデータがあるためシードをスキップしました');

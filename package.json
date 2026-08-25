@@ -13,6 +13,7 @@
     "dev": "node dev/local-server.js",
     "dev:seed": "node dev/local-server.js --seed",
     "dev:reset": "node dev/local-server.js --reset --seed",
+    "dev:bulk": "node dev/local-server.js --reset --seed --games4 200 --games3 100",
     "test:e2e": "node --test --test-timeout 120000 tests/e2e.test.js",
     "test:all": "npm test && npm run test:e2e",
     "deploy": "npm test && node dev/deploy.js"

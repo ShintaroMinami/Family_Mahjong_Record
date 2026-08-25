@@ -135,46 +135,180 @@ function createAppContext(options) {
  * reproducible and its point totals cancel out exactly.
  *
  * @param {AppContext} app
- * @param {{today?: Date}} [options]
+ * @param {{today?: Date, seed?: number, skillStep?: number,
+ *   fourPlayer?: number, threePlayer?: number}} [options]
+ *   Without fourPlayer/threePlayer the fixed six-game sample is used.
  * @returns {number} Number of games inserted.
  */
 function seedSampleData(app, options) {
   if (app.call('apiGetHistory', {}).total > 0) return 0;
 
-  const players = ['父', '母', '兄', '妹'].map((name) => app.call('apiAddPlayer', name));
-  const scoreSets = [
-    [45200, 28700, 17800, 8300],
-    [32100, 30400, 24500, 13000],
-    [51600, 25300, 15200, 7900],
-    [38800, 27100, 22600, 11500],
-    [29400, 28900, 26300, 15400],
-    [60100, 22800, 18700, -1600]
-  ];
-  const today = (options && options.today) || new Date();
+  const opts = options || {};
+  const fourPlayer = opts.fourPlayer || 0;
+  const threePlayer = opts.threePlayer || 0;
+  const total = fourPlayer + threePlayer;
+  // With no counts asked for, the original six fixed games stand. Tests depend
+  // on them down to the individual scores, so they are never generated.
+  const generated = total > 0;
+  const wanted = generated ? total : 6;
 
-  let index = 0;
-  for (let dayOffset = 4; dayOffset >= 0; dayOffset -= 2) {
-    const date = new Date(today.getTime() - dayOffset * 86400000);
-    const gameDate = date.toISOString().slice(0, 10);
-    for (let n = 0; n < 2; n++) {
-      const scores = scoreSets[index % scoreSets.length];
-      const rotation = index % 4; // rotate seats so ranks vary between players
-      app.call('apiSubmitGame', {
-        gameDate,
-        ruleId: 'R001',
-        venue: '自宅',
-        recordedBy: '父',
-        entries: players.map((player, seat) => ({
-          seat,
-          playerId: player.playerId,
-          rawScore: scores[(seat + rotation) % 4],
-          chips: 0
-        }))
-      });
-      index++;
+  const today = opts.today || new Date();
+  const names = generated ? SKILL_ORDER.slice() : ['父', '母', '兄', '妹'];
+  const players = names.map((name) => app.call('apiAddPlayer', name));
+
+  // Seeded rather than random: a chart that looked wrong is worth being able to
+  // reproduce. Changing the seed gives an independent sample, which is the only
+  // way to tell a quirk of one dataset from a bias in how it is generated.
+  const random = mulberry32(opts.seed || 20260825);
+
+  let threeSoFar = 0;
+  for (let index = 0; index < wanted; index += 1) {
+    // Spread the three-handed games evenly through the run rather than putting
+    // them at one end, and without a fixed period: the table is picked by index
+    // modulo the five players, so a period sharing a factor with five would sit
+    // the same people down every time.
+    const wantThree = generated &&
+      Math.floor(((index + 1) * threePlayer) / wanted) > threeSoFar;
+    if (wantThree) threeSoFar += 1;
+
+    const seats = wantThree ? 3 : 4;
+    const table = [];
+    for (let i = 0; i < seats; i += 1) {
+      table.push(players[(index + i) % players.length]);
     }
+
+    const scores = generated
+      ? randomScores(
+          random,
+          table.map((player) => skillOf(player.name)),
+          wantThree ? 105000 : 100000,
+          opts.skillStep === undefined ? SKILL_STEP : opts.skillStep)
+      : FIXED_SCORE_SETS[index % FIXED_SCORE_SETS.length]
+        .map((_score, seat, all) => all[(seat + index % 4) % 4]);
+
+    // Two games a day. The six-game default keeps its original span of three
+    // days ending today, so the dates the tests look for do not move.
+    const dayOffset = generated
+      ? Math.floor((wanted - 1 - index) / 2)
+      : 4 - Math.floor(index / 2) * 2;
+    const date = new Date(today.getTime() - dayOffset * 86400000);
+    app.call('apiSubmitGame', {
+      gameDate: date.toISOString().slice(0, 10),
+      ruleId: wantThree ? 'R002' : 'R001',
+      venue: index % 7 === 0 ? '実家' : '自宅',
+      recordedBy: '父',
+      entries: table.map((player, seat) => ({
+        seat,
+        playerId: player.playerId,
+        rawScore: scores[seat],
+        chips: 0
+      }))
+    });
   }
-  return index;
+  return wanted;
+}
+
+/**
+ * Where a player sits on the seniority ladder, as a signed number of steps
+ * either side of the middle. Unknown names are treated as average.
+ *
+ * @param {string} name
+ * @returns {number}
+ */
+function skillOf(name) {
+  const rank = SKILL_ORDER.indexOf(name);
+  return rank < 0 ? 0 : (SKILL_ORDER.length - 1) / 2 - rank;
+}
+
+/** The original six games, kept exactly as they were so tests do not move. */
+const FIXED_SCORE_SETS = [
+  [45200, 28700, 17800, 8300],
+  [32100, 30400, 24500, 13000],
+  [51600, 25300, 15200, 7900],
+  [38800, 27100, 22600, 11500],
+  [29400, 28900, 26300, 15400],
+  [60100, 22800, 18700, -1600]
+];
+
+/**
+ * A small deterministic PRNG, so a seeded database can be regenerated exactly.
+ * @param {number} seed
+ * @returns {() => number} Values in [0, 1).
+ */
+function mulberry32(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Standard deviation of a player's final score before the table is balanced.
+ *
+ * Chosen so the finished scores spread about as widely as real hanchan do --
+ * roughly a 16,000 point standard deviation around the 25,000 start, which also
+ * puts a player below zero about one game in twenty.
+ */
+const SCORE_SIGMA = { 4: 19000, 3: 25000 };
+
+/**
+ * Points of expected score per step of the seniority ladder.
+ *
+ * Measured, not guessed: at 2,750 the top of the ladder averages 2.20 placings
+ * over four-handed games and the bottom 2.80, with the finished scores spread
+ * about 16,900 points and a player finishing below zero 6.9% of the time --
+ * all in the range real hanchan sit in. `node dev/calibrate-seed.js` re-runs
+ * the measurement.
+ */
+const SKILL_STEP = 2750;
+
+/** Skill order, strongest first. Offsets are steps either side of even. */
+const SKILL_ORDER = ['妹', '祖父', '父', '母', '兄'];
+
+/**
+ * A standard normal sample, so scores cluster the way real ones do rather than
+ * spreading evenly across the range.
+ *
+ * @param {() => number} random
+ * @returns {number}
+ */
+function gaussian(random) {
+  const u = 1 - random();
+  const v = random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/**
+ * Raw scores for one game that add up exactly, in 100-point units.
+ *
+ * Each player is drawn around a mean shifted by their place on the seniority
+ * ladder, then the table is balanced by moving the shared excess off everyone
+ * equally. Balancing is what makes skill relative: a strong table pulls every
+ * score back down, exactly as points changing hands does.
+ *
+ * @param {() => number} random
+ * @param {number[]} skills One offset per seat, in ladder steps.
+ * @param {number} total
+ * @param {number} step Points of expected score per ladder step.
+ * @returns {number[]}
+ */
+function randomScores(random, skills, total, step) {
+  const seats = skills.length;
+  const mean = total / seats;
+  const sigma = SCORE_SIGMA[seats];
+  const drawn = skills.map((skill) => mean + skill * step + gaussian(random) * sigma);
+
+  const excess = drawn.reduce((sum, score) => sum + score, 0) - total;
+  const scores = drawn.map((score) => Math.round((score - excess / seats) / 100) * 100);
+
+  // Rounding leaves the total a few hundred out. Correcting it on a random seat
+  // rather than a fixed one keeps the fix from favouring anybody.
+  const drift = scores.reduce((sum, score) => sum + score, 0) - total;
+  scores[Math.floor(random() * seats)] -= drift;
+  return scores;
 }
 
 /**
@@ -242,6 +376,13 @@ function sourcesFingerprint() {
 module.exports = {
   createAppContext,
   sourcesFingerprint,
+  // Exported for dev/calibrate-seed.js, which measures the generated data
+  // without paying for a round trip through the store for every game.
+  mulberry32,
+  randomScores,
+  skillOf,
+  SKILL_ORDER,
+  SKILL_STEP,
   seedSampleData,
   renderIndexHtml,
   loadPureFunctions,
