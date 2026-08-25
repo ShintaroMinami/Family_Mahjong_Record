@@ -223,3 +223,4 @@ __marimo__/
 dev/data/
 node_modules/
 .clasp-deployment.json
+.claude/settings.local.json
