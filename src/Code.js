@@ -27,7 +27,7 @@ function include(filename) {
 var DEFAULT_RULES = [
   {
     ruleId: 'R001',
-    name: '四麻 25000/30000 ウマ10-20',
+    name: '四麻 25000/30000 ウマ10-20 トビ10',
     playerCount: 4,
     startPoints: 25000,
     returnPoints: 30000,
@@ -37,7 +37,7 @@ var DEFAULT_RULES = [
   },
   {
     ruleId: 'R002',
-    name: '三麻 35000/40000 ウマ10-20',
+    name: '三麻 35000/40000 ウマ10-20 トビ10',
     playerCount: 3,
     startPoints: 35000,
     returnPoints: 40000,

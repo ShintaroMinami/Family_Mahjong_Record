@@ -40,7 +40,7 @@
 | 列 | 型 | 説明 |
 |----|----|------|
 | ruleId | string | `R001` 形式 |
-| name | string | 例「四麻 25000/30000 ウマ10-20」 |
+| name | string | 例「四麻 25000/30000 ウマ10-20 トビ10」 |
 | playerCount | number | 3 または 4 |
 | startPoints | number | 配給原点（例 25000） |
 | returnPoints | number | 返し点（例 30000） |

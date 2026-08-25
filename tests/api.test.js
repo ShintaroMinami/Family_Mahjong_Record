@@ -392,7 +392,7 @@ test('editing a preset does not rescore games already recorded', () => {
   // The game keeps its own copy of the rule it was scored with.
   const game = app.call('apiGetGame', saved.gameId);
   assert.deepEqual(game.rule.uma, [20, 10, -10, -20]);
-  assert.equal(game.ruleName, '四麻 25000/30000 ウマ10-20');
+  assert.equal(game.ruleName, '四麻 25000/30000 ウマ10-20 トビ10');
 });
 
 test('resubmitting an edited game with its own rule keeps the original scoring', () => {
