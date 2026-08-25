@@ -22,7 +22,10 @@
     // The last statistics payload, kept so that re-sorting the tables does not
     // have to go back to the server, and the column they are sorted on.
     stats: null,
-    statsSort: { key: 'top2Rate', dir: -1 },
+    // The two tables on the statistics tab sort independently: they answer
+    // different questions, and the columns barely overlap.
+    statsSort: { key: 'totalPt', dir: -1 },
+    detailSort: { key: 'top2Rate', dir: -1 },
     chartMetric: 'totalPt',
     // The shared passcode, remembered per browser. Empty when the gate is off.
     passcode: ''
@@ -321,14 +324,16 @@
    *
    * @param {{label: string, key: ?string}[]} columns
    * @param {?{key: string, dir: number}} sort Omitted where the table is fixed.
+   * @param {string} [scope] Names the sort state a click should change, so the
+   *   two tables on the statistics tab can be reordered independently.
    * @returns {string}
    */
-  function tableHead(columns, sort) {
+  function tableHead(columns, sort, scope) {
     return '<thead><tr>' + columns.map(function (column) {
       if (!column.key || !sort) return '<th>' + column.label + '</th>';
       var active = sort.key === column.key;
       return '<th class="sortable' + (active ? ' sorted' : '') +
-        '" data-sort="' + column.key + '">' + column.label +
+        '" data-sort="' + column.key + '" data-scope="' + scope + '">' + column.label +
         (active ? (sort.dir < 0 ? ' ▼' : ' ▲') : '') + '</th>';
     }).join('') + '</tr></thead>';
   }
@@ -341,7 +346,7 @@
     }, 0);
     var columns = PLAYER_COLUMNS.filter(function (c) { return showRanks || !c.ranks; });
     var html = '<div class="table-wrap"><table>' +
-      tableHead(columns, options && options.sort) + '<tbody>';
+      tableHead(columns, options && options.sort, 'stats') + '<tbody>';
     players.forEach(function (row) {
       html += '<tr><td>' + escapeHtml(row.name) + '</td>' +
         '<td>' + row.games + '</td>' +
@@ -533,17 +538,16 @@
   }
 
   function renderStats(stats) {
-    var sort = state.statsSort;
-    var players = sortPlayers(stats.players, sort);
+    var players = sortPlayers(stats.players, state.statsSort);
     var period = (stats.from || '最初') + ' 〜 ' + (stats.to || '最新');
     var html = '<div class="card"><h2>' + escapeHtml(period) + '（' + stats.gameCount + '半荘）</h2>' +
       '<p class="hint">見出しをタップすると並べ替えられます。</p>' +
-      playerTable(players, { sort: sort }) + '</div>';
+      playerTable(players, { sort: state.statsSort }) + '</div>';
     html += renderChart(stats);
     if (players.length) {
       html += '<div class="card"><h2>詳細</h2><div class="table-wrap"><table>' +
-        tableHead(DETAIL_COLUMNS, sort) + '<tbody>' +
-        players.map(function (row) {
+        tableHead(DETAIL_COLUMNS, state.detailSort, 'detail') + '<tbody>' +
+        sortPlayers(stats.players, state.detailSort).map(function (row) {
           return '<tr><td>' + escapeHtml(row.name) + '</td>' +
             '<td>' + fmtPct(row.top2Rate) + '</td>' +
             '<td>' + fmtPct(row.topRate) + '</td>' +
@@ -1080,9 +1084,10 @@
 
       var header = event.target.closest('th[data-sort]');
       if (!header) return;
+      var scope = header.getAttribute('data-scope') === 'detail' ? 'detailSort' : 'statsSort';
       var key = header.getAttribute('data-sort');
-      state.statsSort = state.statsSort.key === key
-        ? { key: key, dir: -state.statsSort.dir }
+      state[scope] = state[scope].key === key
+        ? { key: key, dir: -state[scope].dir }
         : { key: key, dir: defaultSortDir(key) };
       renderStats(state.stats);
     });

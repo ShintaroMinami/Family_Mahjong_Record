@@ -301,24 +301,15 @@
         $('#stats-body button[data-metric="totalPt"]').className.indexOf('active') >= 0);
 
       // --- sorting the statistics tables ------------------------------------
-      check('既定は連対率の降順', sortedOn('連対率', 1) === '▼', sortedOn('連対率', 1));
-      var byDefault = names();
+      check('通算成績の既定は合計の降順', sortedOn('合計') === '▼', sortedOn('合計'));
+      check('詳細の既定は連対率の降順', sortedOn('連対率', 1) === '▼', sortedOn('連対率', 1));
+      var byTotal = names();
+      var byTop2 = names(1);
+      check('合計が高い順に並ぶ', descending(column('合計')), column('合計').join(' '));
       check('連対率が高い順に並ぶ',
         descending(column('連対率', 1)), column('連対率', 1).join(' '));
 
-      click(header('平順'));
-      check('平順は昇順から始まる', sortedOn('平順') === '▲', sortedOn('平順'));
-      check('平順が小さい順に並ぶ', ascending(column('平順')), column('平順').join(' '));
-      check('連対率の印が消える', sortedOn('連対率', 1) === '', sortedOn('連対率', 1));
-      check('詳細テーブルも同じ順になる',
-        names(1).join() === names(0).join(), names(0).join() + ' / ' + names(1).join());
-
-      click(header('平順'));
-      check('もう一度押すと降順になる', sortedOn('平順') === '▼', sortedOn('平順'));
-      check('平順が大きい順に並ぶ', descending(column('平順')), column('平順').join(' '));
-
       check('名前の見出しは並べ替えの対象外', !header('名前').getAttribute('data-sort'));
-
       var detailHeads = headers(1).map(function (th) {
         return th.textContent.replace(/[▼▲]/g, '').trim();
       });
@@ -326,15 +317,28 @@
         detailHeads.join(',') === '名前,連対率,トップ率,ラス率,トビ率,平均素点',
         detailHeads.join(','));
 
+      click(header('平順'));
+      check('平順は昇順から始まる', sortedOn('平順') === '▲', sortedOn('平順'));
+      check('平順が小さい順に並ぶ', ascending(column('平順')), column('平順').join(' '));
+      check('合計の印が消える', sortedOn('合計') === '', sortedOn('合計'));
+      check('通算成績を並べ替えても詳細は動かない',
+        names(1).join() === byTop2.join(), names(1).join(' '));
+
+      click(header('平順'));
+      check('もう一度押すと降順になる', sortedOn('平順') === '▼', sortedOn('平順'));
+      check('平順が大きい順に並ぶ', descending(column('平順')), column('平順').join(' '));
+
+      var byAvgRank = names();
       click(header('トビ率', 1));
       check('詳細の見出しでも並べ替えられる',
         descending(column('トビ率', 1)), column('トビ率', 1).join(' '));
+      check('詳細を並べ替えても通算成績は動かない',
+        names().join() === byAvgRank.join(), names().join(' '));
 
       click(header('合計'));
-      check('合計でも並べ替えられる', descending(column('合計')), column('合計').join(' '));
-
+      check('通算成績を既定に戻せる', names().join() === byTotal.join(), names().join(' '));
       click(header('連対率', 1));
-      check('既定の並びに戻せる', names().join() === byDefault.join(), names().join(' '));
+      check('詳細を既定に戻せる', names(1).join() === byTop2.join(), names(1).join(' '));
 
       // --- add player -------------------------------------------------------
       click($('[data-tab="entry"]'));
