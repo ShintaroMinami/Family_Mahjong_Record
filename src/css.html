@@ -382,8 +382,10 @@
   /* ---- tab icon styles ----
      Both variants ship in the markup and are swapped with CSS rather than
      rebuilt in JS, so the chosen style is already correct on the first paint.
-     Emoji is the fallback, so the line icons start hidden. */
+     The line icons are the fallback, so the emoji start hidden and an
+     unknown id leaves the line icons showing. */
   nav.tabbar .icon-line {
+    display: block;
     width: 24px;
     height: 24px;
     fill: none;
@@ -392,11 +394,11 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  nav.tabbar .icon-line,
-  :root[data-icons="emoji"] nav.tabbar .icon-line  { display: none; }
-  :root[data-icons="emoji"] nav.tabbar .icon-emoji { display: block; }
+  nav.tabbar .icon-emoji,
   :root[data-icons="line"]  nav.tabbar .icon-emoji { display: none; }
   :root[data-icons="line"]  nav.tabbar .icon-line  { display: block; }
+  :root[data-icons="emoji"] nav.tabbar .icon-line  { display: none; }
+  :root[data-icons="emoji"] nav.tabbar .icon-emoji { display: block; }
   :root[data-icons="text"]  nav.tabbar .icon       { display: none; }
   :root[data-icons="text"]  nav.tabbar button      { font-size: 16px; }
 

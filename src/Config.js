@@ -31,7 +31,7 @@ var DEFAULT_ACCENT = 'green';
  *
  * One of: 'line' (アイコン) 'emoji' (絵文字) 'text' (文字のみ). Both icon
  * sets are in the markup and CSS decides which one shows, so switching costs
- * nothing at runtime. An unknown id leaves the emoji showing, since that is
- * what the bare markup renders, and tests/config.test.js catches the typo.
+ * nothing at runtime. An unknown id leaves the line icons showing, since that
+ * is what the bare markup renders, and tests/config.test.js catches the typo.
  */
 var DEFAULT_ICONS = 'line';
