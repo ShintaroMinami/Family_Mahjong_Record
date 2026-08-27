@@ -42,12 +42,22 @@ const HISTORY_ROWS = 8;
 const SAMPLE = { fourPlayer: 200, threePlayer: 100 };
 
 const TABS = [
-  { id: 'entry', file: 'screen-entry.png' },
-  { id: 'today', file: 'screen-today.png' },
-  { id: 'history', file: 'screen-history.png' },
-  { id: 'stats', file: 'screen-stats.png' },
-  { id: 'settings', file: 'screen-settings.png' }
+  { id: 'entry', file: 'screen-entry.png', label: '登録' },
+  { id: 'today', file: 'screen-today.png', label: '今日' },
+  { id: 'history', file: 'screen-history.png', label: '履歴' },
+  { id: 'stats', file: 'screen-stats.png', label: '統計' },
+  { id: 'settings', file: 'screen-settings.png', label: '設定' }
 ];
+
+/**
+ * The five screens side by side, for the README.
+ *
+ * Each panel is cut off after one screenful rather than squeezed to fit: a
+ * whole page scaled into a strip leaves nothing legible, and the README only
+ * has to show what the app looks like. docs/index.html carries the full-length
+ * shots for anyone who wants to read them.
+ */
+const COMPOSITE = { file: 'screens.png', clipHeight: VIEWPORT_HEIGHT, gap: 16 };
 
 /** Scores for the entry form, so the main screen shows a real calculation. */
 const ENTRY_SCORES = [42300, 29800, 18600, 9300];
@@ -174,9 +184,11 @@ async function main() {
   await applyMetrics();
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
+  const panels = [];
   for (const tab of TABS) {
-    await shoot(cdp, applyMetrics, port, tab);
+    panels.push(await shoot(cdp, applyMetrics, port, tab));
   }
+  await composite(cdp, panels);
 
   socket.close();
   chrome.kill();
@@ -195,8 +207,8 @@ async function main() {
  * @param {Cdp} cdp
  * @param {() => Promise<any>} applyMetrics Re-applied per load; a navigation drops the override.
  * @param {number} port
- * @param {{id: string, file: string}} tab
- * @returns {Promise<void>}
+ * @param {{id: string, file: string, label: string}} tab
+ * @returns {Promise<string>} The screenshot, base64, for the composite to reuse.
  */
 async function shoot(cdp, applyMetrics, port, tab) {
   await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
@@ -252,6 +264,53 @@ async function shoot(cdp, applyMetrics, port, tab) {
   const file = path.join(OUT_DIR, tab.file);
   fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
   console.log(`  docs/${tab.file}  ${WIDTH}x${height} (${Math.round(fs.statSync(file).size / 1024)} KB)`);
+  return shot.data;
+}
+
+/**
+ * Lays the panels out side by side and captures that as one image.
+ *
+ * Rendering the strip in the browser keeps this dependency free: the shots are
+ * already in hand as base64, and Chrome is already open.
+ *
+ * @param {Cdp} cdp
+ * @param {string[]} panels Base64 PNGs, in TABS order.
+ * @returns {Promise<void>}
+ */
+async function composite(cdp, panels) {
+  const cells = panels.map((data, index) => `
+    <figure>
+      <div class="panel"><img src="data:image/png;base64,${data}"></div>
+      <figcaption>${TABS[index].label}</figcaption>
+    </figure>
+  `).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body { margin: 0; padding: ${COMPOSITE.gap}px; background: #f4f6f5;
+           font-family: system-ui, sans-serif; }
+    .strip { display: flex; gap: ${COMPOSITE.gap}px; align-items: flex-start; }
+    figure { margin: 0; }
+    .panel { width: ${WIDTH}px; height: ${COMPOSITE.clipHeight}px; overflow: hidden;
+             border: 1px solid #d8dedb; border-radius: 12px; background: #fff; }
+    .panel img { display: block; width: ${WIDTH}px; }
+    figcaption { padding-top: 10px; text-align: center; font-size: 28px;
+                 font-weight: 600; color: #1c2320; }
+  </style></head><body><div class="strip">${cells}</div></body></html>`;
+
+  const { frameTree } = await cdp.send('Page.getFrameTree');
+  await cdp.send('Page.setDocumentContent', { frameId: frameTree.frame.id, html });
+  await cdp.waitFor('composite images', `
+    Array.prototype.every.call(document.images, function (img) { return img.complete; })
+  `);
+  const width = await cdp.evaluate(`document.querySelector('.strip').scrollWidth + ${COMPOSITE.gap} * 2`);
+  const height = await cdp.evaluate('document.body.scrollHeight');
+  const shot = await cdp.send('Page.captureScreenshot', {
+    format: 'png',
+    captureBeyondViewport: true,
+    clip: { x: 0, y: 0, width, height, scale: 1 }
+  });
+  const file = path.join(OUT_DIR, COMPOSITE.file);
+  fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
+  console.log(`  docs/${COMPOSITE.file}  ${width}x${height} (${Math.round(fs.statSync(file).size / 1024)} KB)`);
 }
 
 /** Fills the entry form and previews it, so the shot shows a real calculation. */
