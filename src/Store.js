@@ -48,7 +48,56 @@ function getSpreadsheet_() {
 }
 
 /**
+ * Tables whose header row has already been checked in this execution.
+ *
+ * The check costs one extra read per table, and an Apps Script execution is
+ * short-lived, so the verdict is cached rather than re-read on every call.
+ *
+ * @type {Record<string, boolean>}
+ */
+var verifiedHeaders_ = {};
+
+/**
+ * Throws when a sheet's header row no longer matches its schema.
+ *
+ * Rows are addressed by column position, not by header name, so a sheet whose
+ * columns have drifted from SCHEMA -- a column inserted or removed by hand, or
+ * left over from an older version of the app -- does not fail: it quietly reads
+ * every field one slot over. A number lands in a boolean field, a flag lands in
+ * `deleted`, and games disappear from the app with nothing logged. Refusing to
+ * touch the sheet at all is the only safe response.
+ *
+ * @param {string} tableName
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @returns {void}
+ */
+function verifyHeader_(tableName, sheet) {
+  if (verifiedHeaders_[tableName]) return;
+  var columns = SCHEMA[tableName];
+  var header = sheet.getRange(1, 1, 1, columns.length).getValues()[0]
+    .map(function (cell) { return String(cell === null || cell === undefined ? '' : cell).trim(); });
+
+  if (header.join('') === '') {
+    throw new Error('「' + tableName + '」シートに見出し行がありません。' +
+      '1行目に次の見出しを入れてください: ' + columns.join(', '));
+  }
+  for (var i = 0; i < columns.length; i++) {
+    if (header[i] !== columns[i]) {
+      throw new Error('「' + tableName + '」シートの列がアプリの想定と違います。' +
+        (i + 1) + '列目は「' + columns[i] + '」であるべきですが「' + header[i] + '」でした。' +
+        'データが1列ずれて読まれるのを防ぐため処理を中止しました。' +
+        '想定する列の並び: ' + columns.join(', '));
+    }
+  }
+  verifiedHeaders_[tableName] = true;
+}
+
+/**
  * Returns a sheet by name, creating it with its header row when missing.
+ *
+ * An existing sheet is checked against its schema before it is handed out; see
+ * verifyHeader_ for why that is worth a read.
+ *
  * @param {string} tableName
  * @returns {GoogleAppsScript.Spreadsheet.Sheet}
  */
@@ -60,7 +109,10 @@ function getSheet_(tableName) {
     var header = SCHEMA[tableName];
     sheet.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
     sheet.setFrozenRows(1);
+    verifiedHeaders_[tableName] = true;
+    return sheet;
   }
+  verifyHeader_(tableName, sheet);
   return sheet;
 }
 
