@@ -218,6 +218,14 @@ Apps Script は「複数ファイルが 1 つのグローバルスコープを�
 
 </details>
 
+### 画面サンプル
+
+README と `docs/index.html` が載せている5枚のスクリーンショットは
+`npm run docs:shots` で撮り直せる。使い捨てのDBにサンプルデータを入れて
+ヘッドレス Chrome を DevTools プロトコルで動かし、タブごとにページ全体を
+`docs/screen-*.png` へ書き出す。タブが実際に描き終わってから撮るため、
+待ち時間の当て推量が要らない。
+
 ### 単体テストのための制約
 
 `src/*.js` に `module.exports` を書かない。Apps Script にモジュールが無いのに加え、

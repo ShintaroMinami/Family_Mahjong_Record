@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>家族麻雀 スコア記録 — 画面サンプル</title>
+<style>
+  /* The palette is src/css.html's green theme, so this page and the app it
+     shows are the same colour. */
+  :root {
+    --bg: #f4f6f5;
+    --surface: #ffffff;
+    --surface-alt: #eef2f0;
+    --border: #d8dedb;
+    --text: #1c2320;
+    --muted: #68756e;
+    --accent: #1f7a4d;
+    --accent-weak: #e3f1ea;
+    --radius: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181a;
+      --surface: #1e2427;
+      --surface-alt: #262d31;
+      --border: #363f44;
+      --text: #e7eceb;
+      --muted: #9aa8a2;
+      --accent: #4bbd84;
+      --accent-weak: #1d3a2c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    line-height: 1.6;
+  }
+
+  header { max-width: 480px; margin: 0 auto 20px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .lead { margin: 0; color: var(--muted); font-size: 14px; }
+  .lead a { color: var(--accent); }
+
+  .viewer {
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  /* The screenshots are full-page and tall, so the frame keeps a phone-like
+     height and scrolls inside itself. */
+  .screen {
+    height: clamp(420px, 66vh, 700px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--surface-alt);
+  }
+  .screen img { display: none; width: 100%; }
+  .screen img.active { display: block; }
+
+  /* Laid out like the app's own bottom tab bar. */
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .tabs button {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    padding: 8px 0 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .tabs button.active { color: var(--accent); font-weight: 600; }
+  .tabs svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .caption {
+    max-width: 480px;
+    margin: 12px auto 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .caption p { margin: 0 0 6px; }
+  .caption a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>家族麻雀 スコア記録 — 画面サンプル</h1>
+  <p class="lead">
+    下のタブで画面を切り替えられます。各画面は縦にスクロールします。
+    説明は <a href="https://github.com/ShintaroMinami/Family_Mahjong_Record">README</a> にあります。
+  </p>
+</header>
+
+<div class="viewer">
+  <div class="screen" id="screen">
+    <img id="shot-entry" class="active" src="screen-entry.png" alt="登録タブ">
+    <img id="shot-today" src="screen-today.png" alt="今日タブ">
+    <img id="shot-history" src="screen-history.png" alt="履歴タブ">
+    <img id="shot-stats" src="screen-stats.png" alt="統計タブ">
+    <img id="shot-settings" src="screen-settings.png" alt="設定タブ">
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="entry" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8.5v7M8.5 12h7"/>
+      </svg>
+      登録
+    </button>
+    <button data-tab="today">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/>
+      </svg>
+      今日
+    </button>
+    <button data-tab="history">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01"/>
+      </svg>
+      履歴
+    </button>
+    <button data-tab="stats">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 20.5h18M7.5 20.5v-5.5M12 20.5v-11M16.5 20.5v-7.5"/>
+      </svg>
+      統計
+    </button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="17" r="2"/>
+      </svg>
+      設定
+    </button>
+  </nav>
+</div>
+
+<div class="caption">
+  <p id="caption-text"></p>
+  <p>四麻200半荘＋三麻100半荘のサンプルデータを入れた状態。幅430pxで撮影。</p>
+</div>
+
+<script>
+  var CAPTIONS = {
+    entry: '登録 — 素点とチップを入力。合計をその場で検証し、確定前に順位と収支をプレビューします。',
+    today: '今日 — その日の対局一覧と、四麻・三麻に分けたプレイヤー別集計。',
+    history: '履歴 — 期間で絞った対局一覧。ここから訂正と削除ができます（表示は先頭数件のみ）。',
+    stats: '統計 — 通算成績と成績の推移。見出しをタップすると並べ替えられます。',
+    settings: '設定 — ルールプリセットの管理、パスワードの変更、配色とタブ表示の選択。'
+  };
+
+  var screen = document.getElementById('screen');
+  var caption = document.getElementById('caption-text');
+
+  function show(tab) {
+    Array.prototype.forEach.call(screen.querySelectorAll('img'), function (img) {
+      img.classList.toggle('active', img.id === 'shot-' + tab);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (button) {
+      button.classList.toggle('active', button.getAttribute('data-tab') === tab);
+    });
+    // Each screen starts at its own top, the way switching tabs does in the app.
+    screen.scrollTop = 0;
+    caption.textContent = CAPTIONS[tab] || '';
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-tab]');
+    if (button) show(button.getAttribute('data-tab'));
+  });
+
+  show('entry');
+</script>
+
+</body>
+</html>

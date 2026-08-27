@@ -4,12 +4,38 @@
 データは Google スプレッドシートに保存され、PC/スマートフォンのブラウザから
 URLへアクセスして利用できます。
 
-以下はブラウザに表示される画面のサンプルです。
-各タブの内容を横に並べていますので、実際の画面は縦長の各タブ１つ分になります。
+以下はブラウザに表示される画面のサンプルです。見出しをクリックすると開きます。
+5つを並べて切り替えたい場合は
+**[画面サンプル（タブ切り替え）](https://shintarominami.github.io/Family_Mahjong_Record/)**
+をどうぞ。
 
-![登録・今日・履歴・統計・設定の各タブ](docs/screens.png)
+<details open>
+<summary><b>登録</b> — 素点を入力し、確定前に順位と収支をプレビュー</summary>
+<p><img src="docs/screen-entry.png" width="360" alt="登録タブ"></p>
+</details>
 
-*四麻200半荘＋三麻100半荘のサンプルデータを入れた状態。左から 登録・今日・履歴・統計・設定 タブ。*
+<details>
+<summary><b>今日</b> — その日の対局一覧と、四麻・三麻に分けたプレイヤー別集計</summary>
+<p><img src="docs/screen-today.png" width="360" alt="今日タブ"></p>
+</details>
+
+<details>
+<summary><b>履歴</b> — 期間で絞った対局一覧。誤入力の訂正・削除もここから</summary>
+<p><img src="docs/screen-history.png" width="360" alt="履歴タブ"></p>
+</details>
+
+<details>
+<summary><b>統計</b> — 通算成績と成績の推移。見出しをタップすると並べ替え</summary>
+<p><img src="docs/screen-stats.png" width="360" alt="統計タブ"></p>
+</details>
+
+<details>
+<summary><b>設定</b> — ルールプリセットの管理、パスワード、配色とタブ表示</summary>
+<p><img src="docs/screen-settings.png" width="360" alt="設定タブ"></p>
+</details>
+
+*四麻200半荘＋三麻100半荘のサンプルデータを入れた状態。実際の画面はスマートフォンの幅で、
+各タブとも縦にスクロールします（履歴は先頭の数件のみ写しています）。*
 
 ## できること
 
