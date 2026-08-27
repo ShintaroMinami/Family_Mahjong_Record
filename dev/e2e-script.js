@@ -336,7 +336,6 @@
       check('グラフの見出しは指標によらず一定', chartTitle() === '成績の推移', chartTitle());
       check('既定のグラフは合計', activeMetric() === 'totalPt', activeMetric());
       check('0の基準線が引かれる', $$('#stats-body svg line').length === 1);
-      check('チップは選べない', !$('#stats-body button[data-metric="chips"]'));
       var byTotalPoints = polylinePoints();
 
       click($('#stats-body button[data-metric="avgRank"]'));

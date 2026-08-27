@@ -114,15 +114,6 @@ test('validateGameEntries flags a wrong score total', () => {
   assert.match(warnings[0], /素点の合計/);
 });
 
-test('validateGameEntries flags unbalanced chips', () => {
-  const list = entries(45000, 30000, 15000, 10000);
-  list[0].chips = 3;
-  list[1].chips = -1;
-  const warnings = validateGameEntries(list, RULE4);
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /チップの合計/);
-});
-
 test('validateGameEntries returns nothing for a clean game', () => {
   assert.deepEqual(validateGameEntries(entries(45000, 30000, 15000, 10000), RULE4), []);
 });

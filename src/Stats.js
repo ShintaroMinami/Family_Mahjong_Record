@@ -20,7 +20,6 @@
  * @property {number} rank4Rate   Share finished fourth; 0 at a three-player table.
  * @property {number} tobiRate    Share of games ended below zero.
  * @property {number} tobiCount   Games ended below zero.
- * @property {number} chips       Net chips.
  */
 
 /**
@@ -55,7 +54,7 @@ function aggregatePlayerStats(results) {
         playerId: row.playerId,
         games: 0, totalPt: 0, avgPt: 0, avgRank: 0,
         rankCounts: [0, 0, 0, 0],
-        avgRawScore: 0, tobiCount: 0, chips: 0,
+        avgRawScore: 0, tobiCount: 0,
         rank1Rate: 0, rank2Rate: 0, rank3Rate: 0, rank4Rate: 0, tobiRate: 0,
         _rankSum: 0, _scoreSum: 0
       };
@@ -64,7 +63,6 @@ function aggregatePlayerStats(results) {
     stats.totalPt += row.totalPt;
     stats._rankSum += row.rank;
     stats._scoreSum += row.rawScore;
-    stats.chips += row.chips || 0;
     if (row.tobi) stats.tobiCount += 1;
     if (row.rank >= 1 && row.rank <= 4) stats.rankCounts[row.rank - 1] += 1;
   });
@@ -88,8 +86,7 @@ function aggregatePlayerStats(results) {
       rank3Rate: round(stats.rankCounts[2] / games, 3),
       rank4Rate: round(stats.rankCounts[3] / games, 3),
       tobiRate: round(stats.tobiCount / games, 3),
-      tobiCount: stats.tobiCount,
-      chips: stats.chips
+      tobiCount: stats.tobiCount
     };
   }).sort(function (a, b) { return b.totalPt - a.totalPt; });
 }

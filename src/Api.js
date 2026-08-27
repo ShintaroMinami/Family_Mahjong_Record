@@ -11,7 +11,6 @@
  * @property {number} seat
  * @property {string} playerId
  * @property {number} rawScore
- * @property {number} [chips]
  */
 
 /**
@@ -145,8 +144,7 @@ function parseGameInput_(input) {
     return {
       seat: normalizeNumber(entry.seat),
       playerId: playerId,
-      rawScore: rawScore,
-      chips: normalizeNumber(entry.chips)
+      rawScore: rawScore
     };
   });
 
@@ -226,7 +224,6 @@ function buildResultRows_(gameId, gameDate, computed) {
       okaPt: result.okaPt,
       tobiPt: result.tobiPt,
       totalPt: result.totalPt,
-      chips: result.chips,
       tobi: result.tobi,
       deleted: false
     };

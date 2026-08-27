@@ -8,7 +8,7 @@ const { aggregatePlayerStats, buildSeries } =
   loadPureFunctions(['Stats.js'], ['aggregatePlayerStats', 'buildSeries']);
 
 const row = (gameId, playerId, rank, totalPt, extra) =>
-  Object.assign({ gameId, playerId, rank, totalPt, rawScore: 25000, chips: 0, tobi: false }, extra);
+  Object.assign({ gameId, playerId, rank, totalPt, rawScore: 25000, tobi: false }, extra);
 
 test('aggregates games, points and rank distribution per player', () => {
   const results = [
@@ -54,17 +54,17 @@ test('a three-player table leaves the fourth-place rate at zero', () => {
   assert.equal(stats.find((s) => s.playerId === 'P2').rank3Rate, 0);
 });
 
-test('counts bankruptcies and nets chips', () => {
+test('counts bankruptcies', () => {
   const results = [
-    row('G1', 'P1', 1, 60, { chips: 3 }),
-    row('G1', 'P2', 4, -50, { chips: -3, tobi: true }),
-    row('G2', 'P2', 4, -40, { chips: 1, tobi: true })
+    row('G1', 'P1', 1, 60),
+    row('G1', 'P2', 4, -50, { tobi: true }),
+    row('G2', 'P2', 4, -40, { tobi: true })
   ];
   const stats = aggregatePlayerStats(results);
 
   const p2 = stats.find((s) => s.playerId === 'P2');
   assert.equal(p2.tobiCount, 2);
-  assert.equal(p2.chips, -2);
+  assert.equal(p2.tobiRate, 1);
 });
 
 test('rates are counted per game played', () => {

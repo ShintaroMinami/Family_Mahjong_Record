@@ -21,7 +21,7 @@ var SCHEMA = {
     'startPoints', 'returnPoints', 'uma', 'tobiBonus', 'venue',
     'paifuId', 'note', 'recordedBy', 'deleted', 'createdAt', 'updatedAt'],
   Results: ['resultId', 'gameId', 'gameDate', 'seat', 'playerId', 'rawScore', 'rank',
-    'scorePt', 'umaPt', 'okaPt', 'tobiPt', 'totalPt', 'chips', 'tobi', 'deleted']
+    'scorePt', 'umaPt', 'okaPt', 'tobiPt', 'totalPt', 'tobi', 'deleted']
 };
 
 /**
@@ -31,7 +31,7 @@ var SCHEMA = {
 var NUMBER_COLUMNS = {
   playerCount: true, startPoints: true, returnPoints: true, tobiBonus: true,
   seat: true, rawScore: true, rank: true, scorePt: true,
-  umaPt: true, okaPt: true, tobiPt: true, totalPt: true, chips: true
+  umaPt: true, okaPt: true, tobiPt: true, totalPt: true
 };
 
 /**

@@ -23,14 +23,13 @@
  * @property {number} seat        0 = East (first dealer), 1 = South, 2 = West, 3 = North.
  * @property {string} playerId
  * @property {number} rawScore    Final score in points.
- * @property {number} [chips]     Chips exchanged. Positive means received.
  */
 
 /**
  * One player's computed result.
  * @typedef {PlayerEntry & {
  *   rank: number, scorePt: number, umaPt: number, okaPt: number,
- *   tobiPt: number, totalPt: number, chips: number, tobi: boolean
+ *   tobiPt: number, totalPt: number, tobi: boolean
  * }} ComputedResult
  */
 
@@ -136,7 +135,6 @@ function computeGameResults(entries, rule) {
       okaPt: okaPt,
       tobiPt: tobiPt,
       totalPt: roundPt(scorePt + umaPt + okaPt + tobiPt),
-      chips: entry.chips || 0,
       tobi: isTobi
     };
   });
@@ -146,7 +144,7 @@ function computeGameResults(entries, rule) {
  * Checks a game for the mistakes that actually happen when typing scores in.
  *
  * These are warnings, not errors: the caller may still save the game, because
- * a house rule or a manual chip adjustment can legitimately break the sums.
+ * a house rule such as carrying a deposit over can legitimately break the sum.
  *
  * @param {PlayerEntry[]} entries
  * @param {RuleConfig} rule
@@ -160,10 +158,6 @@ function validateGameEntries(entries, rule) {
     warnings.push('素点の合計が ' + actual.toLocaleString() + ' 点です（' +
       expected.toLocaleString() + ' 点であるべきで、差は ' +
       (actual - expected).toLocaleString() + ' 点）');
-  }
-  var chipSum = entries.reduce(function (sum, e) { return sum + (e.chips || 0); }, 0);
-  if (chipSum !== 0) {
-    warnings.push('チップの合計が ' + chipSum + ' 枚です（0 であるべきです）');
   }
   return warnings;
 }

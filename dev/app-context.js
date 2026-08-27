@@ -204,8 +204,7 @@ function seedSampleData(app, options) {
       entries: table.map((player, seat) => ({
         seat,
         playerId: player.playerId,
-        rawScore: scores[seat],
-        chips: 0
+        rawScore: scores[seat]
       }))
     });
   }

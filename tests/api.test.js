@@ -31,8 +31,7 @@ const gamePayload = (players, scores, overrides) =>
     entries: scores.map((rawScore, seat) => ({
       seat,
       playerId: players[seat].playerId,
-      rawScore,
-      chips: 0
+      rawScore
     }))
   }, overrides);
 
@@ -86,7 +85,7 @@ test('a day mixing table sizes is summarised separately but listed together', ()
     gameDate: '2026-08-24',
     ruleId: three.ruleId,
     entries: players.slice(0, 3).map((player, seat) => ({
-      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat], chips: 0
+      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat]
     }))
   });
 
@@ -125,9 +124,9 @@ test('a three-player game uses its own rule and stays zero-sum', () => {
     gameDate: '2026-08-24',
     ruleId: 'R002',
     entries: [
-      { seat: 0, playerId: players[0].playerId, rawScore: 50000, chips: 0 },
-      { seat: 1, playerId: players[1].playerId, rawScore: 35000, chips: 0 },
-      { seat: 2, playerId: players[2].playerId, rawScore: 20000, chips: 0 }
+      { seat: 0, playerId: players[0].playerId, rawScore: 50000 },
+      { seat: 1, playerId: players[1].playerId, rawScore: 35000 },
+      { seat: 2, playerId: players[2].playerId, rawScore: 20000 }
     ]
   });
 
@@ -261,7 +260,7 @@ test('statistics cover one table size at a time', () => {
     gameDate: '2026-08-24',
     ruleId: three.ruleId,
     entries: players.slice(0, 3).map((player, seat) => ({
-      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat], chips: 0
+      seat, playerId: player.playerId, rawScore: [50000, 35000, 20000][seat]
     }))
   });
 
@@ -336,16 +335,6 @@ test('statistics stay zero-sum and expose a cumulative series', () => {
     assert.equal(last('avgPt'), player.avgPt);
     assert.equal(last('avgRank'), player.avgRank);
   });
-});
-
-test('chip imbalance is warned about', () => {
-  const { app, players } = freshApp();
-  const payload = gamePayload(players, [45200, 28700, 17800, 8300]);
-  payload.entries[0].chips = 2;
-  const saved = app.call('apiSubmitGame', payload);
-
-  assert.equal(saved.warnings.length, 1);
-  assert.match(saved.warnings[0], /チップの合計/);
 });
 
 test('index.html resolves its includes and leaves no template tags', () => {
